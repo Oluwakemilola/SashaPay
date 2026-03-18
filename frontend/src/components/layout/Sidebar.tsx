@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Logo from "@/components/brand/Logo";
 import { 
   LayoutDashboard, 
   Users, 
@@ -21,7 +22,9 @@ export function Sidebar() {
   return (
     <aside className="w-64 border-r bg-card flex flex-col h-screen fixed left-0 top-0">
       <div className="p-6 border-b">
-        <h1 className="text-2xl font-bold tracking-tight text-primary">CiviHR</h1>
+        <Link href="/dashboard" className="flex items-center gap-2">
+            <Logo size={28} />
+        </Link>
         <p className="text-xs text-muted-foreground mt-1">Payroll & Financial Identity</p>
       </div>
       

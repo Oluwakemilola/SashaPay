@@ -1,6 +1,6 @@
 "use client";
 // ─────────────────────────────────────────────
-// CiviHR — Login Page
+// SachaPay — Login Page
 // File: src/app/login/page.tsx
 // ─────────────────────────────────────────────
 // Sends email + password to POST /api/auth/login
@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Logo from "@/components/brand/Logo";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -279,16 +280,17 @@ export default function LoginPage() {
 
       <div className="page">
 
-        {/* ── Left decorative panel ──────────────── */}
         <div className="panel-left">
-          <Link href="/" className="panel-logo">Civi<span>HR</span></Link>
+          <Link href="/">
+            <Logo size={32} variant="inverted" />
+          </Link>
 
           <div className="panel-quote">
             <div className="quote-mark">"</div>
             <p className="quote-text">
               Every worker deserves a <em>verified</em> financial identity.
             </p>
-            <p className="quote-author">CiviHR · Built for Nigerian SMEs</p>
+            <p className="quote-author">SachaPay · Built for Nigerian SMEs</p>
           </div>
 
           <p className="panel-tagline">
@@ -306,12 +308,12 @@ export default function LoginPage() {
 
             <div className="form-header">
               {/* Mobile-only logo */}
-              <Link href="/" className="mobile-logo" style={{ display: "none" }}>
-                Civi<span style={{ color: "#C9962A" }}>HR</span>
+              <Link href="/" style={{ marginBottom: 24, display: 'block' }}>
+                <Logo size={28} />
               </Link>
 
               <h1 className="form-title">Welcome back</h1>
-              <p className="form-sub">Sign in to your CiviHR account</p>
+              <p className="form-sub">Sign in to your SachaPay account</p>
             </div>
 
             {/* ── Error message ── */}
@@ -350,7 +352,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="divider" style={{ marginTop: 20 }}><span>new to CiviHR?</span></div>
+            <div className="divider" style={{ marginTop: 20 }}><span>new to SachaPay?</span></div>
 
             <p className="form-footer">
               <Link href="/register">Register your company</Link>

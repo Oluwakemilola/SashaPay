@@ -1,7 +1,7 @@
 "use client";
 // ─────────────────────────────────────────────
-// CiviHR — Register Page
 // File: src/app/register/page.tsx
+// SachaPay — Register Page
 // ─────────────────────────────────────────────
 // This page handles TWO types of registration:
 //   Tab 1: "New Company"  → POST /api/auth/register-org
@@ -20,6 +20,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
+import Logo from "@/components/brand/Logo";
 
 // ── Your backend URL ─────────────────────────
 // Make sure you have NEXT_PUBLIC_API_URL in your .env.local file
@@ -383,7 +384,9 @@ function RegisterForm() {
 
                 {/* ── Left decorative panel ──────────────── */}
                 <div className="panel-left">
-                    <Link href="/" className="panel-logo">Civi<span>HR</span></Link>
+                    <Link href="/">
+                        <Logo size={32} variant="inverted" />
+                    </Link>
 
                     <div className="panel-headline">
                         {tab === "company" ? (
@@ -456,8 +459,8 @@ function RegisterForm() {
                 <div className="panel-right">
                     <div className="form-header">
                         {/* Show logo on mobile since left panel is hidden */}
-                        <Link href="/" style={{ fontFamily: "'DM Serif Display', serif", fontSize: 20, color: "#0B3D2E", textDecoration: "none", display: "block", marginBottom: 24 }}>
-                            Civi<span style={{ color: "#C9962A" }}>HR</span>
+                        <Link href="/" style={{ marginBottom: 24, display: 'block' }}>
+                            <Logo size={28} />
                         </Link>
                         <h1 className="form-title">
                             {tab === "company" ? "Register your company" : "Join your team"}

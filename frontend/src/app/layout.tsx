@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CiviHR - Modern Payroll & HR",
+  title: "SachaPay - Modern Payroll & HR",
   description: "Payroll and worker financial identity platform",
 };
 

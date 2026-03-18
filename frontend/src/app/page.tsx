@@ -1,6 +1,6 @@
 "use client";
 // ─────────────────────────────────────────────
-// CiviHR — Landing Page
+// SachaPay — Landing Page
 // File: src/app/page.tsx
 // ─────────────────────────────────────────────
 // This is the first page visitors see.
@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────
 
 import Link from "next/link";
+import Logo from "@/components/brand/Logo";
 
 export default function LandingPage() {
   return (
@@ -356,7 +357,9 @@ export default function LandingPage() {
 
       {/* ── Navbar ──────────────────────────────── */}
       <nav className="nav">
-        <a href="/" className="nav-logo">Civi<span>HR</span></a>
+        <Link href="/">
+          <Logo size={28} />
+        </Link>
         <div className="nav-links">
           <Link href="/login" className="btn-ghost">Sign In</Link>
           <Link href="/register" className="btn-solid">Get Started</Link>
@@ -371,14 +374,14 @@ export default function LandingPage() {
           Build their <em>financial identity.</em>
         </h1>
         <p className="hero-sub">
-          CiviHR handles salary disbursement and creates a verified financial
+          SachaPay handles salary disbursement and creates a verified financial
           record for every worker — from first payment to financial history.
         </p>
         <div className="hero-ctas">
           <Link href="/register" className="btn-hero-primary">Register Your Company</Link>
           <Link href="/register?tab=join" className="btn-hero-secondary">Join Your Team →</Link>
         </div>
-        <p className="hero-note">Free during hackathon · No credit card required</p>
+        <p className="hero-note">No credit card required</p>
       </section>
 
       {/* ── Stats ───────────────────────────────── */}
@@ -399,11 +402,15 @@ export default function LandingPage() {
 
       {/* ── Features ────────────────────────────── */}
       <section className="features">
-        <p className="section-label">What CiviHR does</p>
+        <p className="section-label">What SachaPay does</p>
         <h2 className="section-title">Everything your payroll needs, nothing it doesn't.</h2>
         <div className="features-grid">
           <div className="feature-card">
-            <div className="feature-icon">💸</div>
+            <div className="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
             <h3 className="feature-title">Salary Disbursement</h3>
             <p className="feature-desc">
               Create a payroll run, approve it, and disburse — all from one screen.
@@ -411,7 +418,11 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon">🪪</div>
+            <div className="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
             <h3 className="feature-title">Worker Financial Passport</h3>
             <p className="feature-desc">
               Every worker builds a verified payment history. A portable financial
@@ -419,7 +430,11 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon">📊</div>
+            <div className="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </div>
             <h3 className="feature-title">Attendance & Eligibility</h3>
             <p className="feature-desc">
               Clock-in records feed directly into payroll eligibility.
@@ -439,8 +454,8 @@ export default function LandingPage() {
 
       {/* ── Footer ──────────────────────────────── */}
       <footer className="footer">
-        <div className="footer-logo">Civi<span>HR</span></div>
-        <p className="footer-copy">© 2025 CiviHR · Built for Nigerian SMEs</p>
+        <Logo size={24} />
+        <p className="footer-copy">© 2025 SachaPay · Built for Nigerian SMEs</p>
       </footer>
     </>
   );
