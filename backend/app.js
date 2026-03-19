@@ -21,7 +21,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://your-vercel-app.vercel.app", // replace with your real Vercel URL
+    "https:sasha-pay.vercel.app", // replace with your real Vercel URL
   ],
   credentials: true,
 }));;
