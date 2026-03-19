@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 
 export default function LoginPage() {
   const router = useRouter();

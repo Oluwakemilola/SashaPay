@@ -7,7 +7,7 @@
 // to every protected request automatically.
 // ─────────────────────────────────────────────
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const BASE = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 
 // ── Token helpers ─────────────────────────────
 export function getToken(): string | null {

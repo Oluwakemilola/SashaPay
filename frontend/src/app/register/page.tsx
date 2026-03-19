@@ -16,7 +16,7 @@ import Link from "next/link";
 import { CheckCircle, Copy, ArrowRight, Building2, UserPlus, Mail, Lock, User, Briefcase } from "lucide-react";
 import Logo from "@/components/brand/Logo";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 
 function RegisterFormContent() {
     const router = useRouter();
@@ -290,9 +290,19 @@ function RegisterFormContent() {
                                 <label>Industry</label>
                                 <select value={orgForm.industry} onChange={e => setOrgForm({...orgForm, industry: e.target.value})}>
                                     <option value="">Select industry</option>
-                                    <option value="Tech">Technology</option>
-                                    <option value="Finance">Finance</option>
-                                    <option value="Retail">Retail</option>
+                                    <option value="Tech">Technology & Software</option>
+                                    <option value="Finance">Finance & Banking</option>
+                                    <option value="Healthcare">Healthcare & Medical</option>
+                                    <option value="Education">Education & Training</option>
+                                    <option value="Retail">Retail & Ecommerce</option>
+                                    <option value="Agriculture">Agriculture & Agritech</option>
+                                    <option value="Manufacturing">Manufacturing</option>
+                                    <option value="Logistics">Logistics & Transport</option>
+                                    <option value="Construction">Construction & Real Estate</option>
+                                    <option value="Hospitality">Hospitality & Tourism</option>
+                                    <option value="Legal">Legal Services</option>
+                                    <option value="Non-Profit">Non-Profit / NGO</option>
+                                    <option value="Other">Other</option>
                                 </select>
                             </div>
                             <div className="field">
