@@ -21,11 +21,10 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https:sasha-pay.vercel.app", // replace with your real Vercel URL
+    "https://sasha-pay.vercel.app",
   ],
   credentials: true,
-}));;
-
+}));
 // Webhook MUST be parsed as raw body for HMAC verification
 app.use(
   "/api/payroll/webhook",
