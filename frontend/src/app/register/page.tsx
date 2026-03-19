@@ -56,10 +56,16 @@ function RegisterFormContent() {
         setLoading(true);
         setError("");
         try {
+            // Ensure orgEmail is provided (backend requirement)
+            const submissionData = {
+                ...orgForm,
+                orgEmail: orgForm.orgEmail || orgForm.adminEmail
+            };
+
             const res = await fetch(`${API}/api/auth/register-org`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(orgForm),
+                body: JSON.stringify(submissionData),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -142,6 +148,12 @@ function RegisterFormContent() {
                 }
                 .panel-headline em { color: #C9962A; font-style: italic; }
                 .panel-sub { color: rgba(255,255,255,0.7); font-size: 16px; margin-bottom: 40px; }
+
+                @media (max-width: 600px) {
+                    .panel-right { padding: 24px 16px !important; }
+                    .form-card { padding: 24px !important; border-radius: 20px !important; }
+                    .panel-headline { font-size: 32px !important; }
+                }
 
                 .panel-right {
                     padding: 60px;

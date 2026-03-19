@@ -270,12 +270,18 @@ export default function LoginPage() {
           align-items: center;
           gap: 6px;
           font-size: 13px;
-          color: #6B7B72;
+          color: #6B7280;
           text-decoration: none;
           margin-bottom: 36px;
           transition: color 0.15s;
         }
         .back-link:hover { color: #0B3D2E; }
+
+        @media (max-width: 600px) {
+          .panel-right { padding: 24px 16px !important; }
+          .form-wrap { max-width: 100%; }
+          .form-title { font-size: 28px !important; }
+        }
       `}</style>
 
       <div className="page">
