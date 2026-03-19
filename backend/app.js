@@ -18,7 +18,13 @@ import staffRoutes        from "./src/routes/staff.routes.js";
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "https://your-vercel-app.vercel.app", // replace with your real Vercel URL
+  ],
+  credentials: true,
+}));;
 
 // Webhook MUST be parsed as raw body for HMAC verification
 app.use(
