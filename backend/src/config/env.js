@@ -9,5 +9,6 @@ export const {
   JWT_EXPIRES_IN,
   PAYSTACK_SECRET_KEY,
   CLAUDE_API_KEY,
+  GROQ_API_KEY,
   NODE_ENV,
 } = process.env;

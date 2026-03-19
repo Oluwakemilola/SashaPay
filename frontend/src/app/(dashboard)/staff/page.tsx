@@ -1,91 +1,167 @@
-import { Filter, Search, Plus, MoreHorizontal } from "lucide-react";
+"use client";
+// ─────────────────────────────────────────────
+// SachaPay — Staff Management
+// File: src/app/(dashboard)/staff/page.tsx
+// ─────────────────────────────────────────────
+// Admin-only page. Hidden/Blocked for workers.
+// ─────────────────────────────────────────────
+
+import { useEffect, useState } from "react";
+import { Users, Filter, Search, Plus, UserCircle, ShieldAlert } from "lucide-react";
+import { getStaff, getStoredUser } from "@/lib/api";
+
+type StaffMember = {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  salary: number;
+  isActive: boolean;
+};
 
 export default function StaffPage() {
-  const staff = [
-    { name: "Chidi Eze", role: "Software Engineer", dept: "Engineering", salary: "₦ 450,000", att: "94%", status: "Active" },
-    { name: "Aisha Bello", role: "Sales Rep", dept: "Sales", salary: "₦ 200,000", att: "88%", status: "Active" },
-    { name: "Kunle Afolayan", role: "Driver", dept: "Operations", salary: "₦ 120,000", att: "65%", status: "On Leave" },
-    { name: "Joy Nnamdi", role: "HR Manager", dept: "HR", salary: "₦ 350,000", att: "98%", status: "Active" },
-    { name: "Emeka Chuks", role: "UI Designer", dept: "Design", salary: "₦ 300,000", att: "91%", status: "Active" },
-    { name: "Fatima Umar", role: "Marketing Lead", dept: "Marketing", salary: "₦ 400,000", att: "85%", status: "Active" },
-  ];
+  const [staff,   setStaff]   = useState<StaffMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState("");
+  const [search,  setSearch]  = useState("");
+  const [role,    setRole]    = useState("WORKER");
+
+  useEffect(() => {
+    const user = getStoredUser();
+    setRole(user?.role || "WORKER");
+
+    if (user?.role === "ADMIN" || user?.role === "MANAGER") {
+        getStaff()
+            .then((d) => setStaff(d.staff as unknown as StaffMember[]))
+            .catch((err) => setError(err.message))
+            .finally(() => setLoading(false));
+    } else {
+        setLoading(false);
+    }
+  }, []);
+
+  const filteredStaff = staff.filter((s) =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
+    (s.department || "").toLowerCase().includes(search.toLowerCase()) ||
+    s.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (role === "WORKER") {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6">
+        <div className="bg-[#0B3D2E]/10 p-6 rounded-full animate-pulse border border-[#0B3D2E]/20">
+            <ShieldAlert className="w-16 h-16 text-[#0B3D2E]" />
+        </div>
+        <div className="max-w-md">
+            <h2 className="text-3xl font-extrabold text-[#0B3D2E] mb-2 tracking-tight">Privacy Restricted</h2>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+                Management of the staff directory is restricted to administrators. 
+                If you believe this is an error, please contact your HR department.
+            </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Staff Management</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-[#0B3D2E]">Staff Management</h2>
           <p className="text-muted-foreground">Manage your employees, roles, and compensation.</p>
         </div>
-        <button className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-medium hover:bg-primary/90 text-sm flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add Staff
+        <button className="bg-[#0B3D2E] text-white px-5 py-2.5 rounded-xl font-semibold hover:opacity-90 transition-all shadow-md text-sm flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add New Staff
         </button>
       </div>
 
-      <div className="bg-card w-full rounded-xl border shadow-sm">
-        <div className="p-4 border-b flex items-center justify-between">
-          <div className="relative w-72">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search staff..."
-              className="w-full bg-background border rounded-md pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-          <button className="border px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 hover:bg-muted/50 transition-colors">
-            <Filter className="w-4 h-4" /> Filters
-          </button>
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive rounded-xl p-4 text-sm animate-shake">
+          ⚠ {error}
         </div>
+      )}
 
+      {/* Filters */}
+      <div className="flex items-center gap-4 bg-card p-4 rounded-2xl border shadow-sm">
+        <div className="relative flex-1 group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <input
+            type="text"
+            placeholder="Search by name, email or department..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-muted/30 border-none outline-none pl-10 pr-4 py-2 rounded-xl text-sm focus:ring-1 ring-[#C9962A]/50"
+          />
+        </div>
+        <button className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+          <Filter className="w-4 h-4" /> Filter
+        </button>
+      </div>
+
+      {/* Staff Table */}
+      <div className="bg-card w-full rounded-2xl border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground uppercase text-xs">
+            <thead className="bg-[#0B3D2E]/5 text-[#0B3D2E] uppercase text-[10px] font-bold tracking-widest border-b">
               <tr>
-                <th className="px-6 py-4 font-medium">Name</th>
-                <th className="px-6 py-4 font-medium">Department</th>
-                <th className="px-6 py-4 font-medium">Salary</th>
-                <th className="px-6 py-4 font-medium">Attendance Rate</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium text-right">Actions</th>
+                <th className="px-6 py-4">Employee</th>
+                <th className="px-6 py-4">Department</th>
+                <th className="px-6 py-4">Role</th>
+                <th className="px-6 py-4 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {staff.map((s, i) => (
-                <tr key={i} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <p className="font-medium text-foreground">{s.name}</p>
-                    <p className="text-xs text-muted-foreground">{s.role}</p>
+              {loading && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-2 border-[#C9962A] border-t-transparent rounded-full animate-spin" />
+                        Scanning staff directory...
+                    </div>
                   </td>
-                  <td className="px-6 py-4 text-muted-foreground">{s.dept}</td>
-                  <td className="px-6 py-4 font-medium">{s.salary}</td>
-                  <td className="px-6 py-4">{s.att}</td>
+                </tr>
+              )}
+              {!loading && filteredStaff.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-20 text-center text-muted-foreground italic">
+                    No matching employees found in the directory.
+                  </td>
+                </tr>
+              )}
+              {filteredStaff.map((member) => (
+                <tr key={member._id} className="hover:bg-muted/30 transition-colors group">
                   <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                      s.status === "Active" ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
-                    }`}>
-                      {s.status}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-[#0B3D2E] font-bold group-hover:scale-110 transition-transform">
+                        <UserCircle className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-[#0B3D2E]">{member.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{member.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="bg-muted px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight">
+                        {member.department || "General"}
                     </span>
                   </td>
+                  <td className="px-6 py-4">
+                     <span className={`text-[11px] font-medium ${member.role === 'ADMIN' ? 'text-[#C9962A]' : 'text-slate-600'}`}>
+                        {member.role}
+                     </span>
+                  </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="text-primary hover:underline font-medium text-sm mr-4">View Profile</button>
-                    <button className="text-muted-foreground hover:text-foreground">
-                      <MoreHorizontal className="w-4 h-4 inline" />
-                    </button>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${member.isActive ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                      {member.isActive ? "ACTIVE" : "INACTIVE"}
+                    </span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-        
-        <div className="p-4 border-t flex items-center justify-between text-sm text-muted-foreground">
-          <p>Showing 1 to 6 of 142 entries</p>
-          <div className="flex gap-1">
-            <button className="px-3 py-1 border rounded hover:bg-muted transition-colors disabled:opacity-50" disabled>Previous</button>
-            <button className="px-3 py-1 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors">1</button>
-            <button className="px-3 py-1 border rounded hover:bg-muted transition-colors">2</button>
-            <button className="px-3 py-1 border rounded hover:bg-muted transition-colors">Next</button>
-          </div>
         </div>
       </div>
     </div>

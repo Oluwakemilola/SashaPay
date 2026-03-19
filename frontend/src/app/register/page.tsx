@@ -8,29 +8,17 @@
 //   Tab 2: "Join Team"    → POST /api/auth/register
 //
 // After success → saves JWT to localStorage → redirects to /dashboard
-//
-// HOW TO READ THIS FILE:
-//   1. State variables (useState) — track what's typed in the form
-//   2. handleRegisterOrg — sends the "new company" form to your backend
-//   3. handleJoinTeam — sends the "join with invite code" form
-//   4. The return() block is the actual HTML/UI
 // ─────────────────────────────────────────────
 
-import { useState, useEffect } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Suspense } from "react";
+import { CheckCircle, Copy, ArrowRight, Building2, UserPlus, Mail, Lock, User, Briefcase } from "lucide-react";
 import Logo from "@/components/brand/Logo";
 
-// ── Your backend URL ─────────────────────────
-// Make sure you have NEXT_PUBLIC_API_URL in your .env.local file
-// e.g.: NEXT_PUBLIC_API_URL=http://localhost:3000
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-// ─────────────────────────────────────────────
-// Inner component (needs useSearchParams)
-// ─────────────────────────────────────────────
-function RegisterForm() {
+function RegisterFormContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -39,11 +27,9 @@ function RegisterForm() {
         searchParams.get("tab") === "join" ? "join" : "company"
     );
 
-    // ── Loading & error state ─────────────────
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
-    // ── "Register Company" form fields ────────
     const [orgForm, setOrgForm] = useState({
         orgName: "",
         orgEmail: "",
@@ -52,9 +38,9 @@ function RegisterForm() {
         adminName: "",
         adminEmail: "",
         adminPassword: "",
+        payrollPolicy: "FIXED_SALARY",
     });
 
-    // ── "Join Team" form fields ────────────────
     const [joinForm, setJoinForm] = useState({
         name: "",
         email: "",
@@ -62,38 +48,29 @@ function RegisterForm() {
         inviteCode: "",
     });
 
-    // ── Handle "Register Company" submit ──────
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [regInviteCode, setRegInviteCode] = useState("");
+
     const handleRegisterOrg = async (e: React.FormEvent) => {
-        e.preventDefault();   // stops page from refreshing
+        e.preventDefault();
         setLoading(true);
         setError("");
-
         try {
             const res = await fetch(`${API}/api/auth/register-org`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                // Send your form data to the backend
                 body: JSON.stringify(orgForm),
             });
-
             const data = await res.json();
-
             if (!res.ok) {
-                // Backend returned an error (e.g. email already exists)
                 setError(data.message || "Registration failed");
                 return;
             }
-
-            // ── Success: save the JWT and user info ──
             localStorage.setItem("token", data.token);
             localStorage.setItem("user", JSON.stringify(data.user));
             localStorage.setItem("organization", JSON.stringify(data.organization));
-
-            // ── Show the invite code before redirecting ──
-            alert(`✅ Company registered!\n\nYour invite code: ${data.inviteCode}\n\nShare this with your staff so they can join.`);
-
-            // ── Go to dashboard ──────────────────────
-            router.push("/dashboard");
+            setRegInviteCode(data.organization?.inviteCode || data.inviteCode || "");
+            setShowSuccessModal(true);
         } catch {
             setError("Could not connect to server. Is your backend running?");
         } finally {
@@ -101,31 +78,24 @@ function RegisterForm() {
         }
     };
 
-    // ── Handle "Join Team" submit ──────────────
     const handleJoinTeam = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
-
         try {
             const res = await fetch(`${API}/api/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(joinForm),
             });
-
             const data = await res.json();
-
             if (!res.ok) {
                 setError(data.message || "Could not join team");
                 return;
             }
-
-            // Save JWT
             localStorage.setItem("token", data.token);
             localStorage.setItem("user", JSON.stringify(data.user));
             localStorage.setItem("organization", JSON.stringify(data.organization));
-
             router.push("/dashboard");
         } catch {
             setError("Could not connect to server. Is your backend running?");
@@ -135,319 +105,156 @@ function RegisterForm() {
     };
 
     return (
-        <>
+        <div className="page-container">
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap');
+                
+                .page-container { 
+                    font-family: 'Outfit', sans-serif; 
+                    background: #F8F5ED; 
+                    min-height: 100vh;
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                }
+                
+                @media (max-width: 900px) {
+                    .page-container { grid-template-columns: 1fr; }
+                    .panel-left { display: none; }
+                }
 
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Outfit', sans-serif; background: #F8F5ED; color: #1A1A1A; }
+                .panel-left {
+                    background: #0B3D2E;
+                    padding: 60px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    color: white;
+                    position: sticky;
+                    top: 0;
+                    height: 100vh;
+                }
 
-        /* ── Page layout ── */
-        .page {
-          min-height: 100vh;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-        }
-        @media (max-width: 768px) {
-          .page { grid-template-columns: 1fr; }
-          .panel-left { display: none; }
-        }
+                .panel-headline {
+                    font-family: 'DM Serif Display', serif;
+                    font-size: 48px;
+                    line-height: 1.1;
+                    margin-bottom: 24px;
+                }
+                .panel-headline em { color: #C9962A; font-style: italic; }
+                .panel-sub { color: rgba(255,255,255,0.7); font-size: 16px; margin-bottom: 40px; }
 
-        /* ── Left decorative panel ── */
-        .panel-left {
-          background: #0B3D2E;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          padding: 48px;
-          position: sticky;
-          top: 0;
-          height: 100vh;
-          overflow: hidden;
-        }
-        .panel-left::before {
-          content: '';
-          position: absolute;
-          top: -80px; right: -80px;
-          width: 300px; height: 300px;
-          background: rgba(201, 150, 42, 0.12);
-          border-radius: 50%;
-        }
-        .panel-logo {
-          font-family: 'DM Serif Display', serif;
-          font-size: 26px;
-          color: #F8F5ED;
-          text-decoration: none;
-        }
-        .panel-logo span { color: #C9962A; }
-        .panel-headline {
-          font-family: 'DM Serif Display', serif;
-          font-size: 42px;
-          color: #F8F5ED;
-          line-height: 1.12;
-          letter-spacing: -0.5px;
-          position: relative;
-        }
-        .panel-headline em { font-style: italic; color: #C9962A; }
-        .panel-headline p {
-          font-family: 'Outfit', sans-serif;
-          font-size: 15px;
-          font-weight: 300;
-          color: rgba(248, 245, 237, 0.65);
-          margin-top: 16px;
-          line-height: 1.6;
-        }
-        .panel-steps { position: relative; }
-        .step {
-          display: flex;
-          gap: 14px;
-          align-items: flex-start;
-          margin-bottom: 20px;
-          position: relative;
-        }
-        .step:not(:last-child)::after {
-          content: '';
-          position: absolute;
-          left: 15px;
-          top: 32px;
-          width: 1px;
-          height: calc(100% + 4px);
-          background: rgba(248, 245, 237, 0.15);
-        }
-        .step-num {
-          width: 32px; height: 32px;
-          background: rgba(201, 150, 42, 0.2);
-          border: 1px solid rgba(201, 150, 42, 0.4);
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 13px;
-          font-weight: 600;
-          color: #C9962A;
-          flex-shrink: 0;
-        }
-        .step-body h4 {
-          font-size: 14px;
-          font-weight: 500;
-          color: #F8F5ED;
-          margin-bottom: 3px;
-        }
-        .step-body p {
-          font-size: 13px;
-          color: rgba(248, 245, 237, 0.5);
-          font-weight: 300;
-          line-height: 1.5;
-        }
+                .panel-right {
+                    padding: 60px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    width: 100%;
+                }
 
-        /* ── Right form panel ── */
-        .panel-right {
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          padding: 48px;
-          overflow-y: auto;
-          max-height: 100vh;
-        }
-        .form-header { margin-bottom: 32px; }
-        .form-header a {
-          font-family: 'DM Serif Display', serif;
-          font-size: 20px;
-          color: #0B3D2E;
-          text-decoration: none;
-          display: block;
-          margin-bottom: 24px;
-        }
-        .form-header a span { color: #C9962A; }
-        .form-title {
-          font-family: 'DM Serif Display', serif;
-          font-size: 32px;
-          color: #0B3D2E;
-          line-height: 1.15;
-          margin-bottom: 8px;
-        }
-        .form-sub {
-          font-size: 15px;
-          color: #6B7B72;
-          font-weight: 300;
-        }
+                .form-card { background: white; padding: 40px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+                
+                .tab-bar {
+                    display: flex;
+                    background: #F3F4F6;
+                    padding: 4px;
+                    border-radius: 12px;
+                    margin-bottom: 32px;
+                }
+                .tab-btn {
+                    flex: 1;
+                    padding: 10px;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    color: #6B7280;
+                }
+                .tab-btn.active { background: white; color: #0B3D2E; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-        /* ── Tab switcher ── */
-        .tab-bar {
-          display: flex;
-          gap: 0;
-          background: rgba(11, 61, 46, 0.06);
-          border-radius: 10px;
-          padding: 4px;
-          margin-bottom: 28px;
-        }
-        .tab-btn {
-          flex: 1;
-          padding: 10px;
-          border: none;
-          background: transparent;
-          border-radius: 8px;
-          font-family: 'Outfit', sans-serif;
-          font-size: 14px;
-          font-weight: 500;
-          color: #6B7B72;
-          cursor: pointer;
-          transition: all 0.18s ease;
-        }
-        .tab-btn.active {
-          background: #0B3D2E;
-          color: #F8F5ED;
-        }
+                .field { margin-bottom: 20px; }
+                .field label { display: block; font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+                .field input, .field select {
+                    width: 100%;
+                    padding: 12px 16px;
+                    border: 1.5px solid #E5E7EB;
+                    border-radius: 12px;
+                    outline: none;
+                    transition: border-color 0.2s;
+                }
+                .field input:focus { border-color: #0B3D2E; }
 
-        /* ── Form fields ── */
-        .form { display: flex; flex-direction: column; gap: 14px; }
-        .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-        @media (max-width: 480px) { .field-row { grid-template-columns: 1fr; } }
-        .field { display: flex; flex-direction: column; gap: 6px; }
-        .field label {
-          font-size: 13px;
-          font-weight: 500;
-          color: #3A5248;
-        }
-        .field input, .field select {
-          padding: 12px 14px;
-          border: 1.5px solid rgba(11, 61, 46, 0.18);
-          border-radius: 9px;
-          font-family: 'Outfit', sans-serif;
-          font-size: 15px;
-          color: #1A1A1A;
-          background: #fff;
-          outline: none;
-          transition: border-color 0.18s;
-          width: 100%;
-        }
-        .field input:focus, .field select:focus {
-          border-color: #0B3D2E;
-          box-shadow: 0 0 0 3px rgba(11, 61, 46, 0.08);
-        }
-        .field input::placeholder { color: #B0BDB8; }
+                .btn-primary {
+                    width: 100%;
+                    background: #0B3D2E;
+                    color: white;
+                    padding: 16px;
+                    border-radius: 12px;
+                    font-weight: 700;
+                    border: none;
+                    cursor: pointer;
+                    transition: opacity 0.2s;
+                    margin-top: 10px;
+                }
+                .btn-primary:hover { opacity: 0.9; }
+                .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* ── Divider ── */
-        .divider {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin: 4px 0;
-        }
-        .divider::before, .divider::after {
-          content: '';
-          flex: 1;
-          height: 1px;
-          background: rgba(11, 61, 46, 0.1);
-        }
-        .divider span { font-size: 12px; color: #9AADA6; }
+                .error-box { background: #FEF2F2; color: #DC2626; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
 
-        /* ── Submit button ── */
-        .btn-submit {
-          width: 100%;
-          padding: 14px;
-          background: #0B3D2E;
-          color: #F8F5ED;
-          border: none;
-          border-radius: 10px;
-          font-family: 'Outfit', sans-serif;
-          font-size: 16px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-          margin-top: 6px;
-        }
-        .btn-submit:hover:not(:disabled) { background: #0a3326; transform: translateY(-1px); }
-        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+                .step-item { display: flex; gap: 16px; margin-bottom: 24px; }
+                .step-icon { width: 32px; height: 32px; background: rgba(201, 150, 42, 0.2); color: #C9962A; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: bold; }
+            `}</style>
 
-        /* ── Error box ── */
-        .error-box {
-          padding: 12px 14px;
-          background: #FEF2F2;
-          border: 1px solid #FECACA;
-          border-radius: 8px;
-          font-size: 14px;
-          color: #B91C1C;
-          line-height: 1.5;
-        }
-
-        /* ── Footer link ── */
-        .form-footer {
-          text-align: center;
-          margin-top: 20px;
-          font-size: 14px;
-          color: #6B7B72;
-        }
-        .form-footer a { color: #0B3D2E; font-weight: 500; text-decoration: none; }
-        .form-footer a:hover { text-decoration: underline; }
-      `}</style>
-
-            <div className="page">
-
-                {/* ── Left decorative panel ──────────────── */}
-                <div className="panel-left">
-                    <Link href="/">
-                        <Logo size={32} variant="inverted" />
-                    </Link>
-
-                    <div className="panel-headline">
+            {/* Left Panel */}
+            <div className="panel-left">
+                <Logo size={40} variant="inverted" />
+                
+                <div>
+                    <h1 className="panel-headline">
                         {tab === "company" ? (
-                            <>Your business,<br /><em>properly paid.</em></>
+                            <>Scale your team,<br /><em>automate finance.</em></>
                         ) : (
-                            <>Your team,<br /><em>your passport.</em></>
+                            <>Your earnings,<br /><em>your identity.</em></>
                         )}
-                        <p>
-                            {tab === "company"
-                                ? "Register your SME and run payroll in minutes. Your staff get a financial identity with every payment."
-                                : "Join your organisation with an invite code. Start building your verified payment history today."}
-                        </p>
-                    </div>
+                    </h1>
+                    <p className="panel-sub">
+                        SachaPay is building the next generation of financial infrastructure for emerging markets.
+                    </p>
 
-                    {/* Steps */}
-                    <div className="panel-steps">
+                    <div className="steps-list">
                         {tab === "company" ? (
                             <>
-                                <div className="step">
-                                    <div className="step-num">1</div>
-                                    <div className="step-body">
-                                        <h4>Register your company</h4>
-                                        <p>Fill in your org details and create your admin account</p>
+                                <div className="step-item">
+                                    <div className="step-icon">1</div>
+                                    <div>
+                                        <h4 className="font-bold">Register Org</h4>
+                                        <p className="text-sm opacity-60">Set up your company profile in seconds.</p>
                                     </div>
                                 </div>
-                                <div className="step">
-                                    <div className="step-num">2</div>
-                                    <div className="step-body">
-                                        <h4>Share the invite code</h4>
-                                        <p>Send your team the code to join your organisation</p>
-                                    </div>
-                                </div>
-                                <div className="step">
-                                    <div className="step-num">3</div>
-                                    <div className="step-body">
-                                        <h4>Run payroll</h4>
-                                        <p>Create a run, approve it, disburse. Done.</p>
+                                <div className="step-item">
+                                    <div className="step-icon">2</div>
+                                    <div>
+                                        <h4 className="font-bold">Instant Invite</h4>
+                                        <p className="text-sm opacity-60">Get a code to share with your staff.</p>
                                     </div>
                                 </div>
                             </>
                         ) : (
                             <>
-                                <div className="step">
-                                    <div className="step-num">1</div>
-                                    <div className="step-body">
-                                        <h4>Get invite code from your admin</h4>
-                                        <p>Ask your manager or HR for the current invite code</p>
+                                <div className="step-item">
+                                    <div className="step-icon">1</div>
+                                    <div>
+                                        <h4 className="font-bold">Join Team</h4>
+                                        <p className="text-sm opacity-60">Enter the code provided by your admin.</p>
                                     </div>
                                 </div>
-                                <div className="step">
-                                    <div className="step-num">2</div>
-                                    <div className="step-body">
-                                        <h4>Create your account</h4>
-                                        <p>Fill in your details to join your organisation</p>
-                                    </div>
-                                </div>
-                                <div className="step">
-                                    <div className="step-num">3</div>
-                                    <div className="step-body">
-                                        <h4>Add your bank account</h4>
-                                        <p>Link your account to receive salary payments</p>
+                                <div className="step-item">
+                                    <div className="step-icon">2</div>
+                                    <div>
+                                        <h4 className="font-bold">Build Credit</h4>
+                                        <p className="text-sm opacity-60">Your salary history becomes your credit score.</p>
                                     </div>
                                 </div>
                             </>
@@ -455,221 +262,126 @@ function RegisterForm() {
                     </div>
                 </div>
 
-                {/* ── Right form panel ────────────────────── */}
-                <div className="panel-right">
-                    <div className="form-header">
-                        {/* Show logo on mobile since left panel is hidden */}
-                        <Link href="/" style={{ marginBottom: 24, display: 'block' }}>
-                            <Logo size={28} />
-                        </Link>
-                        <h1 className="form-title">
-                            {tab === "company" ? "Register your company" : "Join your team"}
-                        </h1>
-                        <p className="form-sub">
-                            {tab === "company"
-                                ? "Set up your organisation in under 2 minutes"
-                                : "Enter your invite code to get started"}
-                        </p>
+                <div className="text-sm opacity-40">© 2026 SachaPay Technical Assessment</div>
+            </div>
+
+            {/* Right Panel */}
+            <div className="panel-right">
+                <div className="form-card">
+                    <div className="mb-8">
+                        <h2 className="text-2xl font-bold text-[#0B3D2E] mb-2">Get Started</h2>
+                        <p className="text-gray-500 text-sm">Join the ecosystem of verified financial identities.</p>
                     </div>
 
-                    {/* ── Tab switcher ── */}
                     <div className="tab-bar">
-                        <button
-                            className={`tab-btn ${tab === "company" ? "active" : ""}`}
-                            onClick={() => { setTab("company"); setError(""); }}
-                        >
-                            New Company
-                        </button>
-                        <button
-                            className={`tab-btn ${tab === "join" ? "active" : ""}`}
-                            onClick={() => { setTab("join"); setError(""); }}
-                        >
-                            Join with Invite
-                        </button>
+                        <button className={`tab-btn ${tab === "company" ? "active" : ""}`} onClick={() => setTab("company")}>New Company</button>
+                        <button className={`tab-btn ${tab === "join" ? "active" : ""}`} onClick={() => setTab("join")}>Join Team</button>
                     </div>
 
-                    {/* ── Error message ── */}
-                    {error && <div className="error-box" style={{ marginBottom: 16 }}>{error}</div>}
+                    {error && <div className="error-box">{error}</div>}
 
-                    {/* ════════════════════════════════════════
-              TAB 1: Register Company form
-              Calls POST /api/auth/register-org
-          ════════════════════════════════════════ */}
-                    {tab === "company" && (
-                        <form className="form" onSubmit={handleRegisterOrg}>
-                            <div className="divider"><span>Organisation details</span></div>
-
-                            <div className="field-row">
-                                <div className="field">
-                                    <label>Company name *</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Acme Nigeria Ltd"
-                                        value={orgForm.orgName}
-                                        onChange={e => setOrgForm({ ...orgForm, orgName: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div className="field">
-                                    <label>Industry</label>
-                                    <select
-                                        value={orgForm.industry}
-                                        onChange={e => setOrgForm({ ...orgForm, industry: e.target.value })}
-                                    >
-                                        <option value="">Select industry</option>
-                                        <option value="Technology">Technology</option>
-                                        <option value="Retail">Retail</option>
-                                        <option value="Healthcare">Healthcare</option>
-                                        <option value="Finance">Finance</option>
-                                        <option value="Education">Education</option>
-                                        <option value="Manufacturing">Manufacturing</option>
-                                        <option value="Agriculture">Agriculture</option>
-                                        <option value="General">General</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="field-row">
-                                <div className="field">
-                                    <label>Company email *</label>
-                                    <input
-                                        type="email"
-                                        placeholder="info@acme.com"
-                                        value={orgForm.orgEmail}
-                                        onChange={e => setOrgForm({ ...orgForm, orgEmail: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div className="field">
-                                    <label>Phone number</label>
-                                    <input
-                                        type="tel"
-                                        placeholder="08012345678"
-                                        value={orgForm.orgPhone}
-                                        onChange={e => setOrgForm({ ...orgForm, orgPhone: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="divider"><span>Admin account</span></div>
-
-                            <div className="field-row">
-                                <div className="field">
-                                    <label>Your full name *</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Oluwakemi Adeyemi"
-                                        value={orgForm.adminName}
-                                        onChange={e => setOrgForm({ ...orgForm, adminName: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div className="field">
-                                    <label>Your email *</label>
-                                    <input
-                                        type="email"
-                                        placeholder="you@acme.com"
-                                        value={orgForm.adminEmail}
-                                        onChange={e => setOrgForm({ ...orgForm, adminEmail: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
+                    {tab === "company" ? (
+                        <form onSubmit={handleRegisterOrg}>
                             <div className="field">
-                                <label>Password *</label>
-                                <input
-                                    type="password"
-                                    placeholder="At least 8 characters"
-                                    value={orgForm.adminPassword}
-                                    onChange={e => setOrgForm({ ...orgForm, adminPassword: e.target.value })}
-                                    required
-                                    minLength={8}
-                                />
+                                <label>Company Name</label>
+                                <input type="text" required placeholder="Acme Ltd" value={orgForm.orgName} onChange={e => setOrgForm({...orgForm, orgName: e.target.value})} />
                             </div>
-
-                            <button className="btn-submit" type="submit" disabled={loading}>
-                                {loading ? "Creating organisation..." : "Register Company →"}
+                            <div className="field">
+                                <label>Industry</label>
+                                <select value={orgForm.industry} onChange={e => setOrgForm({...orgForm, industry: e.target.value})}>
+                                    <option value="">Select industry</option>
+                                    <option value="Tech">Technology</option>
+                                    <option value="Finance">Finance</option>
+                                    <option value="Retail">Retail</option>
+                                </select>
+                            </div>
+                            <div className="field">
+                                <label>Admin Full Name</label>
+                                <input type="text" required placeholder="John Doe" value={orgForm.adminName} onChange={e => setOrgForm({...orgForm, adminName: e.target.value})} />
+                            </div>
+                            <div className="field">
+                                <label>Admin Email</label>
+                                <input type="email" required placeholder="admin@acme.com" value={orgForm.adminEmail} onChange={e => setOrgForm({...orgForm, adminEmail: e.target.value})} />
+                            </div>
+                            <div className="field">
+                                <label>Password</label>
+                                <input type="password" required minLength={8} value={orgForm.adminPassword} onChange={e => setOrgForm({...orgForm, adminPassword: e.target.value})} />
+                            </div>
+                            <button className="btn-primary" type="submit" disabled={loading}>
+                                {loading ? "Creating..." : "Create Organization →"}
+                            </button>
+                        </form>
+                    ) : (
+                        <form onSubmit={handleJoinTeam}>
+                            <div className="field">
+                                <label>Invite Code</label>
+                                <input type="text" required placeholder="ABC-123" value={joinForm.inviteCode} onChange={e => setJoinForm({...joinForm, inviteCode: e.target.value.toUpperCase()})} style={{ letterSpacing: '2px', fontWeight: 'bold' }} />
+                            </div>
+                            <div className="field">
+                                <label>Full Name</label>
+                                <input type="text" required placeholder="Jane Doe" value={joinForm.name} onChange={e => setJoinForm({...joinForm, name: e.target.value})} />
+                            </div>
+                            <div className="field">
+                                <label>Email</label>
+                                <input type="email" required placeholder="jane@email.com" value={joinForm.email} onChange={e => setJoinForm({...joinForm, email: e.target.value})} />
+                            </div>
+                            <div className="field">
+                                <label>Password</label>
+                                <input type="password" required minLength={8} value={joinForm.password} onChange={e => setJoinForm({...joinForm, password: e.target.value})} />
+                            </div>
+                            <button className="btn-primary" type="submit" disabled={loading}>
+                                {loading ? "Joining..." : "Join Team →"}
                             </button>
                         </form>
                     )}
 
-                    {/* ════════════════════════════════════════
-              TAB 2: Join Team form
-              Calls POST /api/auth/register
-          ════════════════════════════════════════ */}
-                    {tab === "join" && (
-                        <form className="form" onSubmit={handleJoinTeam}>
-                            <div className="field">
-                                <label>Invite code *</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. AB12CD"
-                                    value={joinForm.inviteCode}
-                                    onChange={e => setJoinForm({ ...joinForm, inviteCode: e.target.value.toUpperCase() })}
-                                    required
-                                    style={{ textTransform: "uppercase", letterSpacing: "3px", fontWeight: 600, fontSize: 18 }}
-                                />
-                            </div>
-
-                            <div className="divider"><span>Your details</span></div>
-
-                            <div className="field">
-                                <label>Full name *</label>
-                                <input
-                                    type="text"
-                                    placeholder="Tunde Okonkwo"
-                                    value={joinForm.name}
-                                    onChange={e => setJoinForm({ ...joinForm, name: e.target.value })}
-                                    required
-                                />
-                            </div>
-
-                            <div className="field">
-                                <label>Email address *</label>
-                                <input
-                                    type="email"
-                                    placeholder="you@email.com"
-                                    value={joinForm.email}
-                                    onChange={e => setJoinForm({ ...joinForm, email: e.target.value })}
-                                    required
-                                />
-                            </div>
-
-                            <div className="field">
-                                <label>Password *</label>
-                                <input
-                                    type="password"
-                                    placeholder="At least 8 characters"
-                                    value={joinForm.password}
-                                    onChange={e => setJoinForm({ ...joinForm, password: e.target.value })}
-                                    required
-                                    minLength={8}
-                                />
-                            </div>
-
-                            <button className="btn-submit" type="submit" disabled={loading}>
-                                {loading ? "Joining team..." : "Join Team →"}
-                            </button>
-                        </form>
-                    )}
-
-                    <p className="form-footer">
-                        Already have an account? <Link href="/login">Sign in</Link>
-                    </p>
+                    <div className="mt-6 text-center text-sm text-gray-500">
+                        Already have an account? <Link href="/login" className="text-[#0B3D2E] font-bold">Login</Link>
+                    </div>
                 </div>
             </div>
-        </>
+
+            {showSuccessModal && (
+                <SuccessModal code={regInviteCode} onClose={() => router.push("/dashboard")} />
+            )}
+        </div>
     );
 }
 
-// ─────────────────────────────────────────────
-// Wrapper with Suspense (required for useSearchParams in Next.js)
-// ─────────────────────────────────────────────
+function SuccessModal({ code, onClose }: { code: string; onClose: () => void }) {
+    const [copied, setCopied] = useState(false);
+    return (
+        <div className="fixed inset-0 bg-[#0B3D2E]/40 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl text-center transform animate-in zoom-in duration-300">
+                <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle size={40} />
+                </div>
+                <h3 className="text-2xl font-bold text-[#0B3D2E] mb-2">Registration Success!</h3>
+                <p className="text-gray-500 mb-8">Your organization is ready. Share this code with your team to bring them onboard.</p>
+                
+                <div className="bg-[#F8F5ED] border-2 border-dashed border-[#C9962A] rounded-2xl p-6 mb-8 relative">
+                    <div className="text-[10px] font-bold text-[#C9962A] uppercase tracking-widest mb-2">Invite Code</div>
+                    <div className="text-3xl font-black text-[#0B3D2E] tracking-tighter">{code}</div>
+                    <button 
+                        onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                        className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-xl transition-all ${copied ? 'bg-emerald-600 text-white' : 'bg-white border text-gray-400'}`}
+                    >
+                        {copied ? <CheckCircle size={20} /> : <Copy size={20} />}
+                    </button>
+                </div>
+
+                <button onClick={onClose} className="w-full bg-[#0B3D2E] text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                    Continue to Dashboard <ArrowRight size={20} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function RegisterPage() {
     return (
-        <Suspense>
-            <RegisterForm />
+        <Suspense fallback={<div className="p-20 text-center">Loading...</div>}>
+            <RegisterFormContent />
         </Suspense>
     );
 }

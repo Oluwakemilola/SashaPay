@@ -37,7 +37,8 @@ export const registerOrg = async (req, res) => {
       orgPhone,
       adminName,
       adminEmail,
-      adminPassword
+      adminPassword,
+      payrollPolicy
     } = req.body;
 
 
@@ -85,7 +86,8 @@ export const registerOrg = async (req, res) => {
       name: orgName,
       industry: industry || "General",
       email: orgEmail,
-      phone: orgPhone
+      phone: orgPhone,
+      payrollPolicy: payrollPolicy || "FIXED_SALARY"
     });
 
 

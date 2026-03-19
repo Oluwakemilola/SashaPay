@@ -4,7 +4,7 @@ import Transfer from "../models/Transfer.js";
 import FinancialPassport from "../models/FinancialPassport.js";
 import Organization from "../models/Organization.js";
 import axios from "axios";
-import { CLAUDE_API_KEY } from "../config/env.js";
+import { CLAUDE_API_KEY, GROQ_API_KEY } from "../config/env.js";
 import { getCurrentMonth } from "../utils/eligibility.util.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,24 +74,61 @@ Answer the worker's question factually and helpfully based on this data.
 Keep responses concise and friendly. Use ₦ for naira amounts. Respond in plain text.
 `.trim();
 
-    const response = await axios.post(
-      "https://api.anthropic.com/v1/messages",
-      {
-        model:      "claude-3-5-haiku-20241022",
-        max_tokens: 512,
-        system:     systemContext,
-        messages:   [{ role: "user", content: message }],
-      },
-      {
-        headers: {
-          "x-api-key":         CLAUDE_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "Content-Type":      "application/json",
+    // ── Call AI API (Groq -> Claude -> Demo Fallback) ────────────────────────
+    let reply = "";
+    
+    if (GROQ_API_KEY) {
+      // Groq is OpenAI-compatible and extremely fast
+      const response = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: systemContext },
+            { role: "user", content: message }
+          ],
+          max_tokens: 512,
         },
-      }
-    );
-
-    const reply = response.data.content?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+        {
+          headers: {
+            "Authorization": `Bearer ${GROQ_API_KEY}`,
+            "Content-Type":  "application/json",
+          },
+        }
+      ).catch(err => {
+        console.error("Groq API Error:", err.response?.data || err.message);
+        throw err;
+      });
+      reply = response.data.choices?.[0]?.message?.content || "I'm sorry, I couldn't generate a Groq response.";
+    } else if (CLAUDE_API_KEY && CLAUDE_API_KEY !== "your_api_key_here") {
+      const response = await axios.post(
+        "https://api.anthropic.com/v1/messages",
+        {
+          model:      "claude-3-5-haiku-20241022",
+          max_tokens: 512,
+          system:     systemContext,
+          messages:   [{ role: "user", content: message }],
+        },
+        {
+          headers: {
+            "x-api-key":         CLAUDE_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "Content-Type":      "application/json",
+          },
+        }
+      );
+      reply = response.data.content?.[0]?.text || "I'm sorry, I couldn't generate a Claude response.";
+    } else {
+      // Mock response for hackathon demo if no key is provided
+      const isEligible = eligibility?.isEligible;
+      const attPercent = eligibility?.attendancePercent || 0;
+      
+      reply = `[DEMO MODE] Hello ${req.user.name}! I'm your SachaPay Assistant. I see you're in the ${organization?.name || "team"}. 
+      
+Your current attendance is ${attPercent}%. ${isEligible ? "You are eligible for payroll! ✅" : "You need more attendance to qualify for this month's payroll. ❌"} 
+      
+Your last payment was for ${lastTransfer ? lastTransfer.month : "none yet"}. How else can I help you today?`;
+    }
 
     return res.json({ success: true, reply });
   } catch (error) {

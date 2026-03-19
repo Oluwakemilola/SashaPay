@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
-import { getMyPassport, getUser, getOrg } from "@/lib/api";
+import { getMyPassport, getStoredUser, getStoredOrg } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 export default function CertificatePage() {
@@ -20,12 +20,17 @@ export default function CertificatePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setUser(getUser());
-    setOrg(getOrg());
+    setUser(getStoredUser());
+    setOrg(getStoredOrg());
     const load = async () => {
-      const res = await getMyPassport();
-      if (res?.ok && res.data?.passport) setPassport(res.data.passport);
-      setLoading(false);
+      try {
+        const res = await getMyPassport();
+        if (res?.passport) setPassport(res.passport);
+      } catch {
+        // no passport yet — handled by the !passport guard below
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, []);
