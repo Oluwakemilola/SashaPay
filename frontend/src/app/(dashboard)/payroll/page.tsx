@@ -1,202 +1,174 @@
 "use client";
-// ─────────────────────────────────────────────
-// SachaPay — Payroll History Page
-// File: src/app/(dashboard)/payroll/page.tsx
-// ─────────────────────────────────────────────
-// Fetches real payroll runs from GET /api/payroll/history
-// ─────────────────────────────────────────────
-
 import { useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, XCircle, PlayCircle, Clock } from "lucide-react";
-import { getPayrollHistory, getStoredUser } from "@/lib/api";
+import { getToken, getUser } from "@/lib/api";
+
+const API   = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
+const GREEN = "#0B3D2E";
+const GOLD  = "#C9962A";
 
 type PayrollRun = {
-  _id: string;
-  month: string;
-  status: "PENDING" | "APPROVED" | "DISBURSING" | "COMPLETED" | "FAILED";
-  totalAmount: number;   // kobo
-  workerCount: number;
-  createdAt: string;
+  _id: string; month: string;
+  status: "DRAFT" | "APPROVED" | "DISBURSING" | "COMPLETED" | "FAILED" | "PARTIAL_FAILURE";
+  totalAmount: number; eligibleWorkers: number; createdAt: string;
 };
 
-const STATUS_CONFIG = {
-  PENDING:    { label: "Pending",    icon: Clock,          cls: "bg-muted text-muted-foreground" },
-  APPROVED:   { label: "Approved",   icon: CheckCircle2,   cls: "bg-amber-100 text-amber-700" },
-  DISBURSING: { label: "Disbursing", icon: PlayCircle,      cls: "bg-blue-100 text-blue-700" },
-  COMPLETED:  { label: "Completed",  icon: CheckCircle2,   cls: "bg-emerald-100 text-emerald-700" },
-  FAILED:     { label: "Failed",     icon: XCircle,         cls: "bg-destructive/10 text-destructive" },
+const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> = {
+  DRAFT:           { label: "Draft",      bg: "#F8F5ED", color: "#9AADA6" },
+  APPROVED:        { label: "Approved",   bg: "#FFFBEB", color: "#D97706" },
+  DISBURSING:      { label: "Disbursing", bg: "#EFF6FF", color: "#2563EB" },
+  COMPLETED:       { label: "Completed",  bg: "#F0FDF4", color: "#059669" },
+  FAILED:          { label: "Failed",     bg: "#FEF2F2", color: "#DC2626" },
+  PARTIAL_FAILURE: { label: "Partial",    bg: "#FEF2F2", color: "#D97706" },
 };
 
 export default function PayrollPage() {
-  const [runs, setRuns]       = useState<PayrollRun[]>([]);
+  const [runs, setRuns]           = useState<PayrollRun[]>([]);
   const [myHistory, setMyHistory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState("");
-  const [role, setRole]       = useState("WORKER");
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
+  const [role, setRole]           = useState("WORKER");
+  const [acting, setActing]       = useState<string | null>(null);
 
   const isAdmin = role === "ADMIN" || role === "MANAGER";
 
-  useEffect(() => {
-    const user = getStoredUser();
-    const currentRole = user?.role || "WORKER";
-    setRole(currentRole);
+  const authHeader = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
 
-    if (currentRole === "ADMIN" || currentRole === "MANAGER") {
-        getPayrollHistory()
-          .then((d) => setRuns(d.runs as unknown as PayrollRun[]))
-          .catch((err) => setError(err.message))
-          .finally(() => setLoading(false));
+  useEffect(() => {
+    const user = getUser();
+    const r = user?.role || "WORKER";
+    setRole(r);
+
+    if (r === "ADMIN" || r === "MANAGER") {
+      fetch(`${API}/api/payroll/history`, { headers: authHeader() })
+        .then(res => res.json())
+        .then(d => setRuns(d.payrollRuns || []))
+        .catch(() => setError("Could not load payroll history"))
+        .finally(() => setLoading(false));
     } else {
-        // Fetch worker the financial passport for history
-        import("@/lib/api").then(api => {
-            api.getMyPassport()
-                .then(d => {
-                    const pass = d.passport as any;
-                    setMyHistory(pass?.payments || []);
-                })
-                .catch(err => {
-                    // Graceful: no passport yet means no history
-                    if (err.message.includes("404") || err.message.includes("not found")) {
-                        setMyHistory([]);
-                    } else {
-                        setError(err.message);
-                    }
-                })
-                .finally(() => setLoading(false));
-        });
+      fetch(`${API}/api/passport/me`, { headers: authHeader() })
+        .then(res => res.json())
+        .then(d => setMyHistory(d.passport?.payments || []))
+        .catch(() => setMyHistory([]))
+        .finally(() => setLoading(false));
     }
   }, []);
 
-  const completed  = isAdmin 
-    ? runs.filter((r) => r.status === "COMPLETED").length
-    : myHistory.length;
-    
-  const pending    = runs.filter((r) => ["PENDING", "APPROVED"].includes(r.status)).length;
-  const failed     = runs.filter((r) => r.status === "FAILED").length;
+  const handleApprove = async (id: string) => {
+    setActing(id);
+    const res = await fetch(`${API}/api/payroll/${id}/approve`, { method: "PATCH", headers: authHeader() });
+    const d = await res.json();
+    if (res.ok) setRuns(prev => prev.map(r => r._id === id ? { ...r, status: "APPROVED" } : r));
+    else setError(d.message);
+    setActing(null);
+  };
+
+  const handleDisburse = async (id: string) => {
+    setActing(id);
+    const res = await fetch(`${API}/api/payroll/${id}/disburse`, { method: "POST", headers: authHeader() });
+    const d = await res.json();
+    if (res.ok) setRuns(prev => prev.map(r => r._id === id ? { ...r, status: d.payrollRun?.status || "COMPLETED" } : r));
+    else setError(d.message);
+    setActing(null);
+  };
+
+  const completed = isAdmin ? runs.filter(r => r.status === "COMPLETED").length : myHistory.length;
+  const pending   = runs.filter(r => ["DRAFT", "APPROVED"].includes(r.status)).length;
+  const failed    = runs.filter(r => ["FAILED", "PARTIAL_FAILURE"].includes(r.status)).length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Payroll</h2>
-          <p className="text-muted-foreground">History of all payroll runs for your organisation.</p>
-        </div>
+    <div style={{ fontFamily: "Outfit, sans-serif" }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 28, color: GREEN, marginBottom: 4 }}>Payroll</h2>
+        <p style={{ fontSize: 14, color: "#6B7B72" }}>{isAdmin ? "Manage and disburse payroll runs." : "Your salary payment history."}</p>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="bg-destructive/10 border border-destructive/30 text-destructive rounded-xl p-4 text-sm">
-          ⚠ {error}
-        </div>
-      )}
+      {error && <div style={{ padding: "12px 16px", background: "#FEF2F2", color: "#DC2626", borderRadius: 8, marginBottom: 16, fontSize: 14 }}>{error}</div>}
 
-      {/* Summary cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        <StatusCard title={isAdmin ? "Completed" : "Total Payments"} count={completed} icon={CheckCircle2} color="text-emerald-500" bg="bg-emerald-50" />
-        {isAdmin && (
-          <>
-            <StatusCard title="Pending" count={pending} icon={AlertCircle} color="text-amber-500" bg="bg-amber-50" />
-            <StatusCard title="Failed" count={failed} icon={XCircle} color="text-destructive" bg="bg-destructive/10" />
-          </>
-        )}
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+        <StatCard label={isAdmin ? "Completed" : "Payments"} value={completed} color="#059669" />
+        {isAdmin && <StatCard label="Pending" value={pending} color={GOLD} />}
+        {isAdmin && <StatCard label="Failed" value={failed} color="#DC2626" />}
       </div>
 
-      {/* Runs / History Table */}
-      <div className="bg-card w-full rounded-xl border shadow-sm">
-        <div className="p-4 border-b text-emerald-400 font-semibold uppercase text-xs tracking-widest">
-          {isAdmin ? "All Payroll Runs" : "Your Salary History"}
+      {/* Table */}
+      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #E8EDE8", fontFamily: "'DM Serif Display', serif", fontSize: 18, color: GREEN }}>
+          {isAdmin ? "All Payroll Runs" : "Salary History"}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="px-6 py-4 font-bold">Month</th>
-                {isAdmin && <th className="px-6 py-4 font-bold">Workers</th>}
-                <th className="px-6 py-4 font-bold">Amount</th>
-                <th className="px-6 py-4 font-bold">{isAdmin ? "Created" : "Pay Date"}</th>
-                <th className="px-6 py-4 font-bold">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y relative min-h-[100px]">
-              {loading && (
-                <tr>
-                  <td colSpan={isAdmin ? 5 : 4} className="px-6 py-12 text-center text-muted-foreground">
-                    <div className="flex items-center justify-center gap-2">
-                       <Clock className="w-4 h-4 animate-spin" /> Loading data…
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {!loading && (isAdmin ? runs.length === 0 : myHistory.length === 0) && (
-                <tr>
-                  <td colSpan={isAdmin ? 5 : 4} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No payroll data found.
-                  </td>
-                </tr>
-              )}
 
-              {/* ADMIN ROWS */}
-              {isAdmin && runs.map((run) => {
-                const cfg = STATUS_CONFIG[run.status] ?? STATUS_CONFIG.PENDING;
-                const StatusIcon = cfg.icon;
-                return (
-                  <tr key={run._id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-semibold">{run.month}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{run.workerCount ?? "—"}</td>
-                    <td className="px-6 py-4 font-medium">
-                      ₦{Math.round((run.totalAmount ?? 0) / 100).toLocaleString()}
+        {loading ? (
+          <div style={{ padding: 48, textAlign: "center", color: "#9AADA6", fontSize: 14 }}>Loading...</div>
+        ) : (isAdmin ? runs : myHistory).length === 0 ? (
+          <div style={{ padding: 48, textAlign: "center", color: "#9AADA6", fontSize: 14 }}>
+            {isAdmin ? "No payroll runs yet. Click Run Payroll on the dashboard." : "No salary payments yet."}
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#F8F5ED" }}>
+                  <th style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px" }}>Month</th>
+                  {isAdmin && <th style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px" }}>Workers</th>}
+                  <th style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px" }}>Amount</th>
+                  <th style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px" }}>Status</th>
+                  {isAdmin && <th style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px" }}>Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {isAdmin ? runs.map((run, i) => {
+                  const s = STATUS_MAP[run.status] || STATUS_MAP.DRAFT;
+                  const isActing = acting === run._id;
+                  return (
+                    <tr key={run._id} style={{ borderTop: i === 0 ? "none" : "1px solid #F0EDE6" }}>
+                      <td style={{ padding: "14px 20px", fontWeight: 600, color: GREEN }}>{run.month}</td>
+                      <td style={{ padding: "14px 20px", color: "#6B7B72" }}>{run.eligibleWorkers ?? "—"}</td>
+                      <td style={{ padding: "14px 20px", fontWeight: 600 }}>₦{Math.round((run.totalAmount || 0) / 100).toLocaleString()}</td>
+                      <td style={{ padding: "14px 20px" }}>
+                        <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: s.bg, color: s.color }}>{s.label}</span>
+                      </td>
+                      <td style={{ padding: "14px 20px" }}>
+                        {run.status === "DRAFT" && (
+                          <button onClick={() => handleApprove(run._id)} disabled={!!isActing} style={{ padding: "6px 14px", background: GOLD, color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: isActing ? 0.6 : 1, fontFamily: "Outfit, sans-serif" }}>
+                            {isActing ? "..." : "Approve"}
+                          </button>
+                        )}
+                        {run.status === "APPROVED" && (
+                          <button onClick={() => handleDisburse(run._id)} disabled={!!isActing} style={{ padding: "6px 14px", background: GREEN, color: "#F8F5ED", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: isActing ? 0.6 : 1, fontFamily: "Outfit, sans-serif" }}>
+                            {isActing ? "..." : "Disburse"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }) : myHistory.map((pay, i) => (
+                  <tr key={i} style={{ borderTop: i === 0 ? "none" : "1px solid #F0EDE6" }}>
+                    <td style={{ padding: "14px 20px", fontWeight: 600, color: GREEN }}>{pay.month}</td>
+                    <td style={{ padding: "14px 20px", fontWeight: 600, color: "#059669" }}>₦{(pay.amount || 0).toLocaleString()}</td>
+                    <td style={{ padding: "14px 20px" }}>
+                      <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: "#F0FDF4", color: "#059669" }}>✓ Verified</span>
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground">
-                      {new Date(run.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1 ${cfg.cls}`}>
-                        <StatusIcon className="w-3 h-3" />
-                        {cfg.label}
-                      </span>
+                    <td style={{ padding: "14px 20px", color: "#9AADA6", fontSize: 12 }}>
+                      {pay.paidAt ? new Date(pay.paidAt).toLocaleDateString("en-NG") : "—"}
                     </td>
                   </tr>
-                );
-              })}
-
-              {/* WORKER ROWS */}
-              {!isAdmin && myHistory.map((pay, idx) => (
-                <tr key={idx} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-6 py-4 font-semibold uppercase">{pay.month}</td>
-                  <td className="px-6 py-4 font-medium text-emerald-600">
-                    ₦{(pay.amount || 0).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 text-muted-foreground italic">
-                    {pay.date || "—"}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-tight">
-                      VERIFIED ✅
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function StatusCard({ title, count, icon: Icon, color, bg }: {
-  title: string; count: number; icon: React.ElementType; color: string; bg: string;
-}) {
+function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="bg-card border rounded-xl p-6 shadow-sm flex items-center gap-4">
-      <div className={`p-4 rounded-xl ${bg} ${color}`}>
-        <Icon className="w-8 h-8" />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <p className="text-3xl font-bold tracking-tight">{count}</p>
-      </div>
+    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: "20px 24px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+      <p style={{ fontSize: 12, color: "#9AADA6", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>{label}</p>
+      <p style={{ fontSize: 32, fontWeight: 700, color, fontFamily: "'DM Serif Display', serif" }}>{value}</p>
     </div>
   );
-}
+      }
+                    
