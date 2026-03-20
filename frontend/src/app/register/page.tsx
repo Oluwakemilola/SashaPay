@@ -289,4 +289,22 @@ function SuccessModal({ code, onClose }: { code: string; onClose: () => void }) 
           <div style={{ fontSize: 10, fontWeight: 700, color: "#C9962A", textTransform: "uppercase", letterSpacing: 2, marginBottom: 6 }}>Invite Code</div>
           <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 32, color: "#0B3D2E", letterSpacing: 6 }}>{code}</div>
           <button onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: 8, background: copied ? "#059669" : "#fff", border: "1px solid #E8EDE8", color: copied ? "#fff" : "#9AADA6", display: "flex", alignItems: "center", justifyContent: "center"
+            style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: 8, background: copied ? "#059669" : "#fff", border: "1px solid #E8EDE8", color: copied ? "#fff" : "#9AADA6", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+          </button>
+        </div>
+        <button onClick={onClose} style={{ width: "100%", padding: 14, background: "#0B3D2E", color: "#F8F5ED", border: "none", borderRadius: 12, fontFamily: "'Outfit', sans-serif", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          Continue to Dashboard <ArrowRight size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 80, textAlign: "center", fontFamily: "Outfit, sans-serif" }}>Loading...</div>}>
+      <RegisterFormContent />
+    </Suspense>
+  );
+}
