@@ -18,6 +18,7 @@ import {
   CalendarCheck,
   Wallet,
   ShieldCheck,
+  CreditCard,
   Bot,
 } from "lucide-react";
 
