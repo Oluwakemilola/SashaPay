@@ -1,30 +1,32 @@
 "use client";
-// ─────────────────────────────────────────────
-// SachaPay — Login Page
-// File: src/app/login/page.tsx
-// ─────────────────────────────────────────────
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
+const G = "#0B3D2E";
+const GOLD = "#C9962A";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail]       = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
+    e.preventDefault(); setLoading(true); setError("");
     try {
       const res = await fetch(`${API}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
@@ -33,140 +35,93 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(data.user));
       if (data.organization) localStorage.setItem("organization", JSON.stringify(data.organization));
       router.push("/dashboard");
-    } catch {
-      setError("Could not connect to server. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError("Could not connect to server. Please try again."); }
+    finally { setLoading(false); }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "13px 16px",
+    border: "1.5px solid rgba(11,61,46,0.18)", borderRadius: 10,
+    fontFamily: "'Outfit', sans-serif", fontSize: 15,
+    color: "#1A1A1A", background: "#fff", outline: "none",
   };
 
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Outfit', sans-serif; background: #F8F5ED; }
+    <div style={{ fontFamily: "'Outfit', sans-serif", background: "#F8F5ED", minHeight: "100vh", display: "flex" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap'); *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; } input:focus { border-color: #0B3D2E !important; box-shadow: 0 0 0 3px rgba(11,61,46,0.08) !important; outline: none !important; }`}</style>
 
-        .page { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
-        @media (max-width: 768px) {
-          .page { grid-template-columns: 1fr; }
-          .panel-left { display: none; }
-          .panel-right { padding: 32px 20px !important; }
-        }
-
-        .panel-left {
-          background: #0B3D2E; padding: 56px;
-          display: flex; flex-direction: column; justify-content: space-between;
-          position: sticky; top: 0; height: 100vh; overflow: hidden;
-        }
-        .panel-left::before {
-          content: ''; position: absolute; bottom: -80px; left: -80px;
-          width: 320px; height: 320px; background: rgba(201,150,42,0.1); border-radius: 50%;
-        }
-        .logo { font-family: 'DM Serif Display', serif; font-size: 24px; color: #F8F5ED; text-decoration: none; position: relative; }
-        .logo span { color: #C9962A; }
-
-        .panel-content { position: relative; }
-        .quote-mark { font-family: 'DM Serif Display', serif; font-size: 72px; color: rgba(201,150,42,0.25); line-height: 0.8; margin-bottom: 16px; }
-        .quote-text { font-family: 'DM Serif Display', serif; font-size: 26px; color: #F8F5ED; line-height: 1.35; margin-bottom: 20px; }
-        .quote-text em { color: #C9962A; font-style: italic; }
-        .quote-sub { font-size: 14px; color: rgba(248,245,237,0.45); line-height: 1.7; }
-
-        .panel-footer { font-size: 12px; color: rgba(248,245,237,0.25); position: relative; }
-
-        .panel-right {
-          display: flex; flex-direction: column; justify-content: center;
-          align-items: center; padding: 48px; min-height: 100vh;
-        }
-        .form-wrap { width: 100%; max-width: 420px; }
-
-        .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #6B7280; text-decoration: none; margin-bottom: 40px; }
-        .back-link:hover { color: #0B3D2E; }
-
-        .mobile-logo { font-family: 'DM Serif Display', serif; font-size: 22px; color: #0B3D2E; text-decoration: none; display: none; margin-bottom: 28px; }
-        .mobile-logo span { color: #C9962A; }
-        @media (max-width: 768px) { .mobile-logo { display: block; } }
-
-        .form-title { font-family: 'DM Serif Display', serif; font-size: 34px; color: #0B3D2E; margin-bottom: 8px; }
-        .form-sub { font-size: 15px; color: #6B7B72; font-weight: 300; margin-bottom: 32px; }
-
-        .field { margin-bottom: 16px; }
-        .field label { display: block; font-size: 13px; font-weight: 600; color: #3A5248; margin-bottom: 7px; }
-        .field input { width: 100%; padding: 13px 16px; border: 1.5px solid rgba(11,61,46,0.18); border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 15px; color: #1A1A1A; background: #fff; outline: none; transition: all 0.18s; }
-        .field input:focus { border-color: #0B3D2E; box-shadow: 0 0 0 3px rgba(11,61,46,0.08); }
-        .field input::placeholder { color: #B0BDB8; }
-
-        .btn-submit { width: 100%; padding: 14px; background: #0B3D2E; color: #F8F5ED; border: none; border-radius: 10px; font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
-        .btn-submit:hover:not(:disabled) { background: #0a3326; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(11,61,46,0.25); }
-        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-
-        .error-box { padding: 12px 14px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; font-size: 14px; color: #B91C1C; margin-bottom: 16px; }
-
-        .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
-        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: rgba(11,61,46,0.1); }
-        .divider span { font-size: 12px; color: #9AADA6; }
-
-        .form-footer { text-align: center; font-size: 14px; color: #6B7B72; }
-        .form-footer a { color: #0B3D2E; font-weight: 600; text-decoration: none; }
-        .form-footer a:hover { text-decoration: underline; }
-      `}</style>
-
-      <div className="page">
-
-        {/* ── Left Panel ── */}
-        <div className="panel-left">
-          <a href="/" className="logo">Sasha<span>Pay</span></a>
-
-          <div className="panel-content">
-            <div className="quote-mark">"</div>
-            <p className="quote-text">
-              The worker who can <em>prove their income</em><br />
-              will always get the loan.
+      {/* LEFT PANEL — JS controlled */}
+      {isDesktop && (
+        <div style={{ background: G, padding: "56px", display: "flex", flexDirection: "column", justifyContent: "space-between", width: "50%", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflow: "hidden" }}>
+          <div style={{ position: "absolute", bottom: -80, left: -80, width: 320, height: 320, background: "rgba(201,150,42,0.1)", borderRadius: "50%" }} />
+          <a href="/" style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: "#F8F5ED", textDecoration: "none", position: "relative" }}>
+            Sasha<span style={{ color: GOLD }}>Pay</span>
+          </a>
+          <div style={{ position: "relative" }}>
+            <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 72, color: "rgba(201,150,42,0.25)", lineHeight: 0.8, marginBottom: 16 }}>"</div>
+            <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26, color: "#F8F5ED", lineHeight: 1.35, marginBottom: 20 }}>
+              The worker who can <em style={{ color: GOLD }}>prove their income</em> will always get the loan.
             </p>
-            <p className="quote-sub">
-              SachaPay gives every Nigerian worker a verified financial identity — built from every salary payment they've ever received.
+            <p style={{ fontSize: 14, color: "rgba(248,245,237,0.45)", lineHeight: 1.7 }}>
+              SachaPay gives every Nigerian worker a verified financial identity — built from every salary payment they have ever received.
             </p>
           </div>
-
-          <p className="panel-footer">© 2026 SachaPay · Payroll & Financial Identity</p>
+          <p style={{ fontSize: 12, color: "rgba(248,245,237,0.25)", position: "relative" }}>© 2026 SachaPay · Payroll & Financial Identity</p>
         </div>
+      )}
 
-        {/* ── Right Panel ── */}
-        <div className="panel-right">
-          <div className="form-wrap">
+      {/* RIGHT PANEL */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: isDesktop ? "48px" : "32px 20px", minHeight: "100vh" }}>
+        <div style={{ width: "100%", maxWidth: 420 }}>
 
-            <Link href="/" className="back-link">← Back to home</Link>
-            <Link href="/" className="mobile-logo">Sasha<span>Pay</span></Link>
+          <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#6B7280", textDecoration: "none", marginBottom: 32 }}>
+            ← Back to home
+          </Link>
 
-            <h1 className="form-title">Welcome back</h1>
-            <p className="form-sub">Sign in to your SachaPay account</p>
+          {!isDesktop && (
+            <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: G, marginBottom: 24 }}>
+              Sasha<span style={{ color: GOLD }}>Pay</span>
+            </div>
+          )}
 
-            {error && <div className="error-box">{error}</div>}
+          <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 34, color: G, marginBottom: 8 }}>Welcome back</h1>
+          <p style={{ fontSize: 15, color: "#6B7B72", fontWeight: 300, marginBottom: 32 }}>Sign in to your SachaPay account</p>
 
-            <form onSubmit={handleLogin}>
-              <div className="field">
-                <label>Email address</label>
-                <input type="email" placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
-              </div>
-              <div className="field">
-                <label>Password</label>
-                <input type="password" placeholder="Your password" value={password} onChange={e => setPassword(e.target.value)} required />
-              </div>
-              <button className="btn-submit" type="submit" disabled={loading}>
-                {loading ? "Signing in..." : "Sign In →"}
-              </button>
-            </form>
+          {error && (
+            <div style={{ padding: "12px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 14, color: "#B91C1C", marginBottom: 16 }}>
+              {error}
+            </div>
+          )}
 
-            <div className="divider"><span>new to SachaPay?</span></div>
+          <form onSubmit={handleLogin}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#3A5248", marginBottom: 7 }}>Email address</label>
+              <input type="email" placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} required autoFocus style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#3A5248", marginBottom: 7 }}>Password</label>
+              <input type="password" placeholder="Your password" value={password} onChange={e => setPassword(e.target.value)} required style={inputStyle} />
+            </div>
+            <button type="submit" disabled={loading}
+              style={{ width: "100%", padding: "14px", background: G, color: "#F8F5ED", border: "none", borderRadius: 10, fontFamily: "'Outfit', sans-serif", fontSize: 16, fontWeight: 600, cursor: "pointer", marginTop: 8, opacity: loading ? 0.6 : 1 }}>
+              {loading ? "Signing in..." : "Sign In →"}
+            </button>
+          </form>
 
-            <p className="form-footer">
-              <Link href="/register">Register your company</Link>
-              {" · "}
-              <Link href="/register?tab=join">Join with invite code</Link>
-            </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(11,61,46,0.1)" }} />
+            <span style={{ fontSize: 12, color: "#9AADA6" }}>new to SachaPay?</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(11,61,46,0.1)" }} />
           </div>
+
+          <p style={{ textAlign: "center", fontSize: 14, color: "#6B7B72" }}>
+            <Link href="/register" style={{ color: G, fontWeight: 600, textDecoration: "none" }}>Register your company</Link>
+            {" · "}
+            <Link href="/register?tab=join" style={{ color: G, fontWeight: 600, textDecoration: "none" }}>Join with invite code</Link>
+          </p>
         </div>
       </div>
-    </>
+    </div>
   );
-}
+                       }
+            
