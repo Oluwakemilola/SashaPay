@@ -26,8 +26,8 @@ const links = [
   { name: "Staff",              href: "/staff",       icon: Users },
   { name: "Attendance",         href: "/attendance",  icon: CalendarCheck },
   { name: "Payroll",            href: "/payroll",     icon: Wallet },
-  { name: "Bank Accounts",      href: "/bank",        icon: CreditCard },
   { name: "Financial Passport", href: "/passport",    icon: ShieldCheck },
+  { name: "Bank Accounts",      href: "/bank",        icon: CreditCard },
   { name: "AI Agent",           href: "/agent",       icon: Bot },
 ];
 
