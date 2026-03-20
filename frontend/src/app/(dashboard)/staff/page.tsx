@@ -1,169 +1,135 @@
 "use client";
-// ─────────────────────────────────────────────
-// SachaPay — Staff Management
-// File: src/app/(dashboard)/staff/page.tsx
-// ─────────────────────────────────────────────
-// Admin-only page. Hidden/Blocked for workers.
-// ─────────────────────────────────────────────
-
 import { useEffect, useState } from "react";
-import { Users, Filter, Search, Plus, UserCircle, ShieldAlert } from "lucide-react";
-import { getStaff, getStoredUser } from "@/lib/api";
+import { Search, X, Check, Pencil } from "lucide-react";
+import { getToken } from "@/lib/api";
 
-type StaffMember = {
-  _id: string;
-  name: string;
-  email: string;
-  role: string;
-  department: string;
-  salary: number;
-  isActive: boolean;
-};
+const API   = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
+const GREEN = "#0B3D2E";
+const GOLD  = "#C9962A";
+
+type Worker = { _id: string; name: string; email: string; department?: string; salary?: number; isActive: boolean; };
+type EditState = { salary: string; department: string; };
 
 export default function StaffPage() {
-  const [staff,   setStaff]   = useState<StaffMember[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState("");
-  const [search,  setSearch]  = useState("");
-  const [role,    setRole]    = useState("WORKER");
+  const [staff, setStaff]       = useState<Worker[]>([]);
+  const [filtered, setFiltered] = useState<Worker[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState("");
+  const [search, setSearch]     = useState("");
+  const [editing, setEditing]   = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<EditState>({ salary: "", department: "" });
+  const [saving, setSaving]     = useState(false);
+  const [saveMsg, setSaveMsg]   = useState("");
 
   useEffect(() => {
-    const user = getStoredUser();
-    setRole(user?.role || "WORKER");
-
-    if (user?.role === "ADMIN" || user?.role === "MANAGER") {
-        getStaff()
-            .then((d) => setStaff(d.staff as unknown as StaffMember[]))
-            .catch((err) => setError(err.message))
-            .finally(() => setLoading(false));
-    } else {
-        setLoading(false);
-    }
+    fetch(`${API}/api/staff`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(r => r.json())
+      .then(d => { setStaff(d.staff || []); setFiltered(d.staff || []); })
+      .catch(() => setError("Could not load staff"))
+      .finally(() => setLoading(false));
   }, []);
 
-  const filteredStaff = staff.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    (s.department || "").toLowerCase().includes(search.toLowerCase()) ||
-    s.email.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    const q = search.toLowerCase();
+    setFiltered(staff.filter(w => w.name.toLowerCase().includes(q) || w.email.toLowerCase().includes(q) || (w.department || "").toLowerCase().includes(q)));
+  }, [search, staff]);
 
-  if (role === "WORKER") {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6">
-        <div className="bg-[#0B3D2E]/10 p-6 rounded-full animate-pulse border border-[#0B3D2E]/20">
-            <ShieldAlert className="w-16 h-16 text-[#0B3D2E]" />
-        </div>
-        <div className="max-w-md">
-            <h2 className="text-3xl font-extrabold text-[#0B3D2E] mb-2 tracking-tight">Privacy Restricted</h2>
-            <p className="text-muted-foreground text-sm leading-relaxed">
-                Management of the staff directory is restricted to administrators. 
-                If you believe this is an error, please contact your HR department.
-            </p>
-        </div>
-      </div>
-    );
-  }
+  const startEdit = (w: Worker) => { setEditing(w._id); setEditForm({ salary: w.salary ? String(w.salary) : "", department: w.department || "" }); setSaveMsg(""); };
+  const cancelEdit = () => { setEditing(null); setSaveMsg(""); };
+
+  const saveEdit = async (workerId: string) => {
+    setSaving(true); setSaveMsg("");
+    try {
+      const res = await fetch(`${API}/api/staff/${workerId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ salary: editForm.salary ? Number(editForm.salary) : undefined, department: editForm.department || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSaveMsg(data.message || "Failed to save"); return; }
+      setStaff(prev => prev.map(w => w._id === workerId ? { ...w, ...data.worker } : w));
+      setEditing(null);
+    } catch { setSaveMsg("Could not connect"); }
+    finally { setSaving(false); }
+  };
+
+  const initials = (name: string) => name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-[#0B3D2E]">Staff Management</h2>
-          <p className="text-muted-foreground">Manage your employees, roles, and compensation.</p>
-        </div>
-        <button className="bg-[#0B3D2E] text-white px-5 py-2.5 rounded-xl font-semibold hover:opacity-90 transition-all shadow-md text-sm flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add New Staff
-        </button>
+    <div style={{ fontFamily: "Outfit, sans-serif" }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 28, color: GREEN, marginBottom: 4 }}>Staff Management</h2>
+        <p style={{ fontSize: 14, color: "#6B7B72" }}>Set salaries and departments for your workers.</p>
       </div>
 
-      {error && (
-        <div className="bg-destructive/10 border border-destructive/30 text-destructive rounded-xl p-4 text-sm animate-shake">
-          ⚠ {error}
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="flex items-center gap-4 bg-card p-4 rounded-2xl border shadow-sm">
-        <div className="relative flex-1 group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-          <input
-            type="text"
-            placeholder="Search by name, email or department..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-muted/30 border-none outline-none pl-10 pr-4 py-2 rounded-xl text-sm focus:ring-1 ring-[#C9962A]/50"
-          />
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-xl text-sm font-medium hover:bg-muted transition-colors">
-          <Filter className="w-4 h-4" /> Filter
-        </button>
+      <div style={{ position: "relative", marginBottom: 20, maxWidth: 400 }}>
+        <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "#9AADA6" }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search staff..." style={{ width: "100%", padding: "10px 14px 10px 38px", border: "1.5px solid #E8EDE8", borderRadius: 10, outline: "none", fontSize: 14, color: GREEN, fontFamily: "Outfit, sans-serif" }} />
       </div>
 
-      {/* Staff Table */}
-      <div className="bg-card w-full rounded-2xl border shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-[#0B3D2E]/5 text-[#0B3D2E] uppercase text-[10px] font-bold tracking-widest border-b">
-              <tr>
-                <th className="px-6 py-4">Employee</th>
-                <th className="px-6 py-4">Department</th>
-                <th className="px-6 py-4">Role</th>
-                <th className="px-6 py-4 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {loading && (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
-                    <div className="flex flex-col items-center gap-3">
-                        <div className="w-8 h-8 border-2 border-[#C9962A] border-t-transparent rounded-full animate-spin" />
-                        Scanning staff directory...
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {!loading && filteredStaff.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-6 py-20 text-center text-muted-foreground italic">
-                    No matching employees found in the directory.
-                  </td>
-                </tr>
-              )}
-              {filteredStaff.map((member) => (
-                <tr key={member._id} className="hover:bg-muted/30 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-[#0B3D2E] font-bold group-hover:scale-110 transition-transform">
-                        <UserCircle className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-[#0B3D2E]">{member.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{member.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="bg-muted px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight">
-                        {member.department || "General"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                     <span className={`text-[11px] font-medium ${member.role === 'ADMIN' ? 'text-[#C9962A]' : 'text-slate-600'}`}>
-                        {member.role}
-                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${member.isActive ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                      {member.isActive ? "ACTIVE" : "INACTIVE"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {error && <div style={{ padding: "12px 16px", background: "#FEF2F2", color: "#DC2626", borderRadius: 8, marginBottom: 16, fontSize: 14 }}>{error}</div>}
+      {saveMsg && <div style={{ padding: "10px 16px", background: "#F0FDF4", color: "#059669", borderRadius: 8, marginBottom: 16, fontSize: 14, fontWeight: 600 }}>{saveMsg}</div>}
+
+      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1.5fr 1fr 80px", padding: "12px 20px", background: "#F8F5ED", borderBottom: "1px solid #E8EDE8" }}>
+          {["Employee", "Department", "Salary (₦/month)", "Status", ""].map(h => (
+            <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px" }}>{h}</div>
+          ))}
         </div>
+
+        {loading ? (
+          <div style={{ padding: 48, textAlign: "center", color: "#9AADA6", fontSize: 14 }}>Loading staff...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: 48, textAlign: "center", color: "#9AADA6", fontSize: 14 }}>
+            {search ? "No staff match your search." : "No workers yet. Share your invite code to add staff."}
+          </div>
+        ) : filtered.map((w, i) => (
+          <div key={w._id} style={{ borderTop: i === 0 ? "none" : "1px solid #F0EDE6", background: editing === w._id ? "#FAFFF9" : "#fff" }}>
+            {editing !== w._id ? (
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1.5fr 1fr 80px", padding: "14px 20px", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: GOLD, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{initials(w.name)}</div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: GREEN }}>{w.name}</div>
+                    <div style={{ fontSize: 12, color: "#9AADA6" }}>{w.email}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 13, color: w.department ? "#3A5248" : "#C4CFC8", fontStyle: w.department ? "normal" : "italic" }}>{w.department || "Not set"}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: w.salary ? GREEN : "#C4CFC8", fontStyle: w.salary ? "normal" : "italic" }}>{w.salary ? `₦${w.salary.toLocaleString()}` : "Not set"}</div>
+                <div><span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: w.isActive ? "#F0FDF4" : "#F8F5ED", color: w.isActive ? "#059669" : "#9AADA6" }}>{w.isActive ? "Active" : "Inactive"}</span></div>
+                <div><button onClick={() => startEdit(w)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", border: `1px solid ${GREEN}`, borderRadius: 8, background: "transparent", color: GREEN, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Outfit, sans-serif" }}><Pencil style={{ width: 12, height: 12 }} /> Edit</button></div>
+              </div>
+            ) : (
+              <div style={{ padding: "16px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: GOLD, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{initials(w.name)}</div>
+                  <div><div style={{ fontSize: 14, fontWeight: 600, color: GREEN }}>{w.name}</div><div style={{ fontSize: 12, color: "#9AADA6" }}>{w.email}</div></div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B7B72", marginBottom: 6 }}>Monthly Salary (₦)</label>
+                    <input type="number" placeholder="e.g. 150000" value={editForm.salary} onChange={e => setEditForm({ ...editForm, salary: e.target.value })} style={{ width: "100%", padding: "10px 12px", border: `1.5px solid ${GREEN}`, borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "Outfit, sans-serif", color: GREEN }} />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B7B72", marginBottom: 6 }}>Department</label>
+                    <input type="text" placeholder="e.g. Engineering" value={editForm.department} onChange={e => setEditForm({ ...editForm, department: e.target.value })} style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #E8EDE8", borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "Outfit, sans-serif", color: GREEN }} />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => saveEdit(w._id)} disabled={saving} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", background: GREEN, color: "#F8F5ED", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: saving ? 0.6 : 1, fontFamily: "Outfit, sans-serif" }}>
+                    <Check style={{ width: 14, height: 14 }} />{saving ? "Saving..." : "Save"}
+                  </button>
+                  <button onClick={cancelEdit} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", background: "transparent", color: "#6B7B72", border: "1px solid #E8EDE8", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Outfit, sans-serif" }}>
+                    <X style={{ width: 14, height: 14 }} /> Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
+      <p style={{ marginTop: 12, fontSize: 12, color: "#C4CFC8" }}>{filtered.length} worker{filtered.length !== 1 ? "s" : ""} · Salary is used for payroll disbursements</p>
     </div>
   );
-}
+               }
+        
