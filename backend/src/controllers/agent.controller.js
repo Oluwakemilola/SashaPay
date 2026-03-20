@@ -7,11 +7,10 @@ import axios from "axios";
 import { CLAUDE_API_KEY, GROQ_API_KEY } from "../config/env.js";
 import { getCurrentMonth } from "../utils/eligibility.util.js";
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // chat
 // POST /api/agent/chat
-// Worker sends a message; Claude answers using their real data as context
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 export const chat = async (req, res) => {
   try {
     const { message } = req.body;
@@ -20,11 +19,11 @@ export const chat = async (req, res) => {
       return res.status(400).json({ success: false, message: "message is required" });
     }
 
-    const month        = getCurrentMonth();
-    const workerId     = req.user._id;
-    const orgId        = req.user.organization;
+    const month     = getCurrentMonth();
+    const workerId  = req.user._id;
+    const orgId     = req.user.organization;
+    const firstName = req.user.name?.split(" ")[0] || "there";
 
-    // ── Gather worker context ──────────────────────────────────────────────
     const [organization, eligibility, recentAttendance, lastTransfer] = await Promise.all([
       Organization.findById(orgId, "name payrollPolicy thresholdPercent totalWorkDays"),
       Eligibility.findOne({ worker: workerId, month }),
@@ -38,15 +37,20 @@ export const chat = async (req, res) => {
     ]);
 
     const attendanceSummary = recentAttendance.map((a) => ({
-      date:    a.date.toISOString().split("T")[0],
-      status:  a.status,
-      hours:   a.hoursWorked,
+      date:   a.date.toISOString().split("T")[0],
+      status: a.status,
+      hours:  a.hoursWorked,
     }));
 
     const systemContext = `
-You are a helpful HR assistant for SachaPay, a payroll platform for Nigerian SMEs.
-
+You are a warm, friendly HR assistant for SachaPay, a payroll platform for Nigerian SMEs.
 You are speaking with ${req.user.name}, a worker at ${organization?.name || "their organisation"}.
+
+Always address them by their first name "${firstName}" naturally in your responses.
+Be conversational, empathetic and helpful — not robotic or overly formal.
+If they raise a complaint or concern, acknowledge their feelings first before explaining.
+Keep responses to 2-4 sentences unless more detail is genuinely needed.
+Use ₦ for naira amounts. Respond in plain text, no markdown.
 
 Current month: ${month}
 Salary: ₦${(req.user.salary || 0).toLocaleString()}
@@ -69,37 +73,34 @@ Last salary payment:
 ${lastTransfer
   ? `₦${Math.round(lastTransfer.amountKobo / 100).toLocaleString()} for ${lastTransfer.month} (paid ${lastTransfer.paidAt?.toISOString().split("T")[0]})`
   : "No salary payments on record yet."}
-
-Answer the worker's question factually and helpfully based on this data.
-Keep responses concise and friendly. Use ₦ for naira amounts. Respond in plain text.
 `.trim();
 
-    // ── Call AI API (Groq -> Claude -> Demo Fallback) ────────────────────────
     let reply = "";
-    
+
     if (GROQ_API_KEY) {
-      // Groq is OpenAI-compatible and extremely fast
       const response = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
           model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: systemContext },
-            { role: "user", content: message }
+            { role: "user",   content: message },
           ],
           max_tokens: 512,
         },
         {
           headers: {
-            "Authorization": `Bearer ${GROQ_API_KEY}`,
-            "Content-Type":  "application/json",
+            Authorization:  `Bearer ${GROQ_API_KEY}`,
+            "Content-Type": "application/json",
           },
         }
       ).catch(err => {
         console.error("Groq API Error:", err.response?.data || err.message);
         throw err;
       });
-      reply = response.data.choices?.[0]?.message?.content || "I'm sorry, I couldn't generate a Groq response.";
+      reply = response.data.choices?.[0]?.message?.content
+        || `Sorry ${firstName}, I couldn't generate a response right now.`;
+
     } else if (CLAUDE_API_KEY && CLAUDE_API_KEY !== "your_api_key_here") {
       const response = await axios.post(
         "https://api.anthropic.com/v1/messages",
@@ -117,20 +118,18 @@ Keep responses concise and friendly. Use ₦ for naira amounts. Respond in plain
           },
         }
       );
-      reply = response.data.content?.[0]?.text || "I'm sorry, I couldn't generate a Claude response.";
+      reply = response.data.content?.[0]?.text
+        || `Sorry ${firstName}, I couldn't generate a response right now.`;
+
     } else {
-      // Mock response for hackathon demo if no key is provided
-      const isEligible = eligibility?.isEligible;
+      // Demo fallback — no API key needed
       const attPercent = eligibility?.attendancePercent || 0;
-      
-      reply = `[DEMO MODE] Hello ${req.user.name}! I'm your SachaPay Assistant. I see you're in the ${organization?.name || "team"}. 
-      
-Your current attendance is ${attPercent}%. ${isEligible ? "You are eligible for payroll! ✅" : "You need more attendance to qualify for this month's payroll. ❌"} 
-      
-Your last payment was for ${lastTransfer ? lastTransfer.month : "none yet"}. How else can I help you today?`;
+      const isEligible = eligibility?.isEligible;
+      reply = `Hi ${firstName}! I'm your SachaPay assistant. Your attendance this month is ${attPercent}%. ${isEligible ? "Great news — you're eligible for payroll this month! ✅" : "Unfortunately your attendance is below the required threshold for this month's payroll. ❌"} Your last payment was ${lastTransfer ? `for ${lastTransfer.month}` : "not yet recorded"}. Feel free to ask me anything else!`;
     }
 
     return res.json({ success: true, reply });
+
   } catch (error) {
     console.error("AI Agent error:", error.response?.data || error.message);
     return res.status(500).json({
@@ -140,11 +139,9 @@ Your last payment was for ${lastTransfer ? lastTransfer.month : "none yet"}. How
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// history
-// GET /api/agent/history
-// Placeholder — chat history persistence can be added in a future iteration
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// history — placeholder
+// ─────────────────────────────────────────────
 export const history = async (req, res) => {
   return res.json({
     success: true,
