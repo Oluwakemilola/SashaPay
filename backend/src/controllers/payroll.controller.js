@@ -10,43 +10,30 @@ import FinancialPassport from "../models/FinancialPassport.js";
 import Eligibility from "../models/Eligibility.js";
 
 import { calculateEligibility, getCurrentMonth } from "../utils/eligibility.util.js";
-import { bulkTransfer, verifyWebhookSignature } from "../services/paystack.service.js";
+import { bulkTransfer, verifyWebhookSignature, MOCK_MODE } from "../services/paystack.service.js";
 import { PAYSTACK_SECRET_KEY } from "../config/env.js";
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // rebuildFinancialPassport
-// Called whenever a transfer status changes to SUCCESS
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 const rebuildFinancialPassport = async (workerId) => {
-  const successfulTransfers = await Transfer.find({
-    worker: workerId,
-    status: "SUCCESS",
-  })
+  const successfulTransfers = await Transfer.find({ worker: workerId, status: "SUCCESS" })
     .populate("organization", "name industry")
     .sort({ paidAt: 1 });
 
   if (successfulTransfers.length === 0) return;
 
-  const totalIncome = successfulTransfers.reduce(
-    (sum, t) => sum + Math.round(t.amountKobo / 100),
-    0
-  );
-  const totalMonthsPaid    = successfulTransfers.length;
+  const totalIncome          = successfulTransfers.reduce((sum, t) => sum + Math.round(t.amountKobo / 100), 0);
+  const totalMonthsPaid      = successfulTransfers.length;
   const averageMonthlyIncome = Math.round(totalIncome / totalMonthsPaid);
 
-  // payment consistency: months paid / months in employment * 100
-  // We treat months employed as months from first to last payment
-  const firstPaid = successfulTransfers[0].paidAt;
-  const lastPaid  = successfulTransfers[totalMonthsPaid - 1].paidAt;
-  const monthsEmployed =
-    (lastPaid.getFullYear() - firstPaid.getFullYear()) * 12 +
+  const firstPaid      = successfulTransfers[0].paidAt;
+  const lastPaid       = successfulTransfers[totalMonthsPaid - 1].paidAt;
+  const monthsEmployed = (lastPaid.getFullYear() - firstPaid.getFullYear()) * 12 +
     (lastPaid.getMonth() - firstPaid.getMonth()) + 1;
 
-  const paymentConsistencyScore = Math.min(
-    100,
-    Math.round((totalMonthsPaid / monthsEmployed) * 100)
-  );
-  const incomeStabilityScore = paymentConsistencyScore; // same metric
+  const paymentConsistencyScore = Math.min(100, Math.round((totalMonthsPaid / monthsEmployed) * 100));
+  const incomeStabilityScore    = paymentConsistencyScore;
 
   const payments = successfulTransfers.map((t) => ({
     month:        t.month,
@@ -55,23 +42,15 @@ const rebuildFinancialPassport = async (workerId) => {
     paidAt:       t.paidAt,
   }));
 
-  // Group by org for employment history
   const orgMap = {};
   successfulTransfers.forEach((t) => {
     const key = t.organization?._id?.toString();
     if (!key) return;
-    if (!orgMap[key]) {
-      orgMap[key] = {
-        orgName:   t.organization.name,
-        industry:  t.organization.industry,
-        from:      t.paidAt,
-        to:        t.paidAt,
-        amounts:   [],
-      };
-    }
+    if (!orgMap[key]) orgMap[key] = { orgName: t.organization.name, industry: t.organization.industry, from: t.paidAt, to: t.paidAt, amounts: [] };
     orgMap[key].to = t.paidAt;
     orgMap[key].amounts.push(Math.round(t.amountKobo / 100));
   });
+
   const employmentHistory = Object.values(orgMap).map((e) => ({
     orgName:   e.orgName,
     industry:  e.industry,
@@ -82,37 +61,22 @@ const rebuildFinancialPassport = async (workerId) => {
 
   await FinancialPassport.findOneAndUpdate(
     { worker: workerId },
-    {
-      worker: workerId,
-      totalIncome,
-      totalMonthsEmployed:     monthsEmployed,
-      averageMonthlyIncome,
-      paymentConsistencyScore,
-      incomeStabilityScore,
-      payments,
-      employmentHistory,
-      generatedAt: new Date(),
-    },
-    { upsert: true, new: true }
+    { worker: workerId, totalIncome, totalMonthsEmployed: monthsEmployed, averageMonthlyIncome, paymentConsistencyScore, incomeStabilityScore, payments, employmentHistory, generatedAt: new Date() },
+    { upsert: true, returnDocument: "after" }
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// createRun
-// POST /api/payroll/run   (ADMIN)
-// Builds a DRAFT payroll run with Transfer docs for each eligible worker
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// createRun — POST /api/payroll/run
+// ─────────────────────────────────────────────
 export const createRun = async (req, res) => {
   try {
     const { month } = req.body;
     const orgId     = req.user.organization;
 
     const organization = await Organization.findById(orgId);
-    if (!organization) {
-      return res.status(404).json({ success: false, message: "Organization not found" });
-    }
+    if (!organization) return res.status(404).json({ success: false, message: "Organization not found" });
 
-    // Only one run per org per month
     const existing = await PayrollRun.findOne({ organization: orgId, month });
     if (existing) {
       return res.status(400).json({
@@ -122,46 +86,32 @@ export const createRun = async (req, res) => {
       });
     }
 
-    // Get all active workers
-    const workers = await User.find({ organization: orgId, role: "WORKER", isActive: true });
+    const workers            = await User.find({ organization: orgId, role: "WORKER", isActive: true });
+    const eligibilityResults = await Promise.all(workers.map((w) => calculateEligibility(w, organization, month)));
+    const eligibleWorkers    = workers.filter((_, i) => eligibilityResults[i].isEligible);
 
-    // Recalculate eligibility for every worker
-    const eligibilityResults = await Promise.all(
-      workers.map((w) => calculateEligibility(w, organization, month))
-    );
-
-    const eligibleWorkers = workers.filter((_, i) => eligibilityResults[i].isEligible);
-
-    // Only include workers who have a verified primary bank account
+    // ── MOCK MODE: accept any bank account (not just VERIFIED)
+    // ── LIVE MODE: require verified primary account
     const eligibleWithBank = [];
     for (const worker of eligibleWorkers) {
       const account = await BankAccount.findOne({
-        worker:             worker._id,
-        isPrimary:          true,
-        verificationStatus: "VERIFIED",
+        worker:    worker._id,
+        isPrimary: true,
+        ...(MOCK_MODE ? {} : { verificationStatus: "VERIFIED" }),
       });
-      if (account) {
-        eligibleWithBank.push({ worker, account });
-      }
+      if (account) eligibleWithBank.push({ worker, account });
     }
 
-    const totalAmount = eligibleWithBank.reduce(
-      (sum, { worker }) => sum + (worker.salary || 0) * 100, // NGN → kobo
-      0
-    );
+    const totalAmount = eligibleWithBank.reduce((sum, { worker }) => sum + (worker.salary || 0) * 100, 0);
 
-    // Create payroll run
     const payrollRun = await PayrollRun.create({
-      organization:    orgId,
-      month,
-      totalWorkers:    workers.length,
+      organization: orgId, month,
+      totalWorkers: workers.length,
       eligibleWorkers: eligibleWithBank.length,
-      totalAmount,
-      status:          "DRAFT",
+      totalAmount, status: "DRAFT",
     });
 
-    // Create one Transfer per eligible worker
-    const transfers = await Promise.all(
+    await Promise.all(
       eligibleWithBank.map(({ worker, account }) =>
         Transfer.create({
           payrollRun:    payrollRun._id,
@@ -169,7 +119,7 @@ export const createRun = async (req, res) => {
           organization:  orgId,
           month,
           amountKobo:    (worker.salary || 0) * 100,
-          recipientCode: account.recipientCode,
+          recipientCode: account.recipientCode || `MOCK-${account._id}`,
           status:        "PENDING",
         })
       )
@@ -179,79 +129,41 @@ export const createRun = async (req, res) => {
       success: true,
       message: `Payroll run created for ${month}. ${eligibleWithBank.length} workers eligible.`,
       payrollRun,
-      transfers,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// approveRun
-// PATCH /api/payroll/:id/approve   (ADMIN)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// approveRun — PATCH /api/payroll/:id/approve
+// ─────────────────────────────────────────────
 export const approveRun = async (req, res) => {
   try {
-    const run = await PayrollRun.findOne({
-      _id:          req.params.id,
-      organization: req.user.organization,
-    });
+    const run = await PayrollRun.findOne({ _id: req.params.id, organization: req.user.organization });
+    if (!run) return res.status(404).json({ success: false, message: "Payroll run not found" });
+    if (run.status !== "DRAFT") return res.status(400).json({ success: false, message: `Cannot approve a run with status: ${run.status}` });
 
-    if (!run) {
-      return res.status(404).json({ success: false, message: "Payroll run not found" });
-    }
-
-    if (run.status !== "DRAFT") {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot approve a payroll run with status: ${run.status}`,
-      });
-    }
-
-    run.status     = "APPROVED";
-    run.approvedBy = req.user._id;
-    run.approvedAt = new Date();
+    run.status = "APPROVED"; run.approvedBy = req.user._id; run.approvedAt = new Date();
     await run.save();
-
     return res.json({ success: true, message: "Payroll run approved", payrollRun: run });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// disburseRun
-// POST /api/payroll/:id/disburse   (ADMIN)
-// Sends bulk transfer to Paystack
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// disburseRun — POST /api/payroll/:id/disburse
+// ─────────────────────────────────────────────
 export const disburseRun = async (req, res) => {
   try {
-    const run = await PayrollRun.findOne({
-      _id:          req.params.id,
-      organization: req.user.organization,
-    });
+    const run = await PayrollRun.findOne({ _id: req.params.id, organization: req.user.organization });
+    if (!run) return res.status(404).json({ success: false, message: "Payroll run not found" });
+    if (run.status !== "APPROVED") return res.status(400).json({ success: false, message: "Payroll must be APPROVED before disbursement" });
 
-    if (!run) {
-      return res.status(404).json({ success: false, message: "Payroll run not found" });
-    }
+    const pendingTransfers = await Transfer.find({ payrollRun: run._id, status: "PENDING" });
+    if (pendingTransfers.length === 0) return res.status(400).json({ success: false, message: "No pending transfers found" });
 
-    if (run.status !== "APPROVED") {
-      return res.status(400).json({
-        success: false,
-        message: "Payroll must be APPROVED before disbursement",
-      });
-    }
-
-    const pendingTransfers = await Transfer.find({
-      payrollRun: run._id,
-      status:     "PENDING",
-    });
-
-    if (pendingTransfers.length === 0) {
-      return res.status(400).json({ success: false, message: "No pending transfers found" });
-    }
-
-    // Build Paystack bulk payload
     const payload = pendingTransfers.map((t) => ({
       amount:    t.amountKobo,
       recipient: t.recipientCode,
@@ -259,19 +171,39 @@ export const disburseRun = async (req, res) => {
       reason:    `Salary for ${run.month}`,
     }));
 
-    // Update each transfer with its reference
-    await Promise.all(
-      pendingTransfers.map((t, i) =>
-        Transfer.findByIdAndUpdate(t._id, {
-          paystackReference: payload[i].reference,
-          status:            "RETRYING",
-        })
-      )
-    );
+    // Update references
+    await Promise.all(pendingTransfers.map((t, i) =>
+      Transfer.findByIdAndUpdate(t._id, { paystackReference: payload[i].reference, status: "RETRYING" })
+    ));
 
-    // Send to Paystack
+    // Call Paystack (or mock)
     await bulkTransfer(payload);
 
+    // ── MOCK MODE: immediately mark all SUCCESS and rebuild passports ──
+    if (MOCK_MODE) {
+      console.log("🟡 MOCK MODE: marking all transfers as SUCCESS");
+      const now = new Date();
+
+      await Promise.all(pendingTransfers.map((t) =>
+        Transfer.findByIdAndUpdate(t._id, { status: "SUCCESS", paidAt: now }, { returnDocument: "after" })
+      ));
+
+      // Rebuild passport for every worker who was paid
+      await Promise.all(pendingTransfers.map((t) => rebuildFinancialPassport(t.worker)));
+
+      run.status      = "COMPLETED";
+      run.completedAt = now;
+      run.disbursedAt = now;
+      await run.save();
+
+      return res.json({
+        success: true,
+        message: `✅ ${pendingTransfers.length} workers paid successfully (mock mode)`,
+        payrollRun: run,
+      });
+    }
+
+    // Live mode — Paystack webhook will handle status updates
     run.status      = "DISBURSING";
     run.disbursedAt = new Date();
     await run.save();
@@ -282,109 +214,72 @@ export const disburseRun = async (req, res) => {
       payrollRun: run,
     });
   } catch (error) {
+    console.error("Disburse error:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// retryFailed
-// POST /api/payroll/:id/retry-failed   (ADMIN)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// retryFailed — POST /api/payroll/:id/retry-failed
+// ─────────────────────────────────────────────
 export const retryFailed = async (req, res) => {
   try {
-    const run = await PayrollRun.findOne({
-      _id:          req.params.id,
-      organization: req.user.organization,
-    });
-
-    if (!run) {
-      return res.status(404).json({ success: false, message: "Payroll run not found" });
-    }
+    const run = await PayrollRun.findOne({ _id: req.params.id, organization: req.user.organization });
+    if (!run) return res.status(404).json({ success: false, message: "Payroll run not found" });
 
     const failedTransfers = await Transfer.find({ payrollRun: run._id, status: "FAILED" });
-
-    if (failedTransfers.length === 0) {
-      return res.status(400).json({ success: false, message: "No failed transfers to retry" });
-    }
+    if (failedTransfers.length === 0) return res.status(400).json({ success: false, message: "No failed transfers to retry" });
 
     const payload = failedTransfers.map((t) => ({
-      amount:    t.amountKobo,
-      recipient: t.recipientCode,
+      amount: t.amountKobo, recipient: t.recipientCode,
       reference: `SACHAPAY-RETRY-${Date.now()}-${t._id}`,
-      reason:    `Salary retry for ${run.month}`,
+      reason: `Salary retry for ${run.month}`,
     }));
 
-    await Promise.all(
-      failedTransfers.map((t, i) =>
-        Transfer.findByIdAndUpdate(t._id, {
-          paystackReference: payload[i].reference,
-          status:            "RETRYING",
-          failureReason:     null,
-        })
-      )
-    );
+    await Promise.all(failedTransfers.map((t, i) =>
+      Transfer.findByIdAndUpdate(t._id, { paystackReference: payload[i].reference, status: "RETRYING", failureReason: null })
+    ));
 
     await bulkTransfer(payload);
-
-    return res.json({
-      success: true,
-      message: `Retrying ${failedTransfers.length} failed transfers`,
-    });
+    return res.json({ success: true, message: `Retrying ${failedTransfers.length} failed transfers` });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// webhook
-// POST /api/payroll/webhook
-// Paystack calls this to notify us of transfer outcomes
-// NOTE: This route must use express.raw() body parser — see app.js
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// webhook — POST /api/payroll/webhook
+// ─────────────────────────────────────────────
 export const webhook = async (req, res) => {
   try {
     const signature = req.headers["x-paystack-signature"];
-
-    if (!verifyWebhookSignature(req.rawBody, signature)) {
-      return res.status(401).json({ success: false, message: "Invalid webhook signature" });
-    }
+    if (!verifyWebhookSignature(req.rawBody, signature)) return res.status(401).json({ success: false, message: "Invalid webhook signature" });
 
     const event = req.body;
-
     if (event.event === "transfer.success" || event.event === "transfer.failed") {
       const { reference, status: paystackStatus } = event.data;
-
       const transfer = await Transfer.findOne({ paystackReference: reference });
-      if (!transfer) return res.sendStatus(200); // unknown ref — ignore
+      if (!transfer) return res.sendStatus(200);
 
-      const newStatus = paystackStatus === "success" ? "SUCCESS" : "FAILED";
+      const newStatus        = paystackStatus === "success" ? "SUCCESS" : "FAILED";
       transfer.status        = newStatus;
       transfer.failureReason = paystackStatus !== "success" ? event.data.reason : null;
       transfer.paidAt        = paystackStatus === "success" ? new Date() : null;
       await transfer.save();
 
-      // Rebuild financial passport on success
-      if (newStatus === "SUCCESS") {
-        await rebuildFinancialPassport(transfer.worker);
-      }
+      if (newStatus === "SUCCESS") await rebuildFinancialPassport(transfer.worker);
 
-      // Check if the whole payroll run is now done
       const run = await PayrollRun.findById(transfer.payrollRun);
       if (run) {
         const allTransfers = await Transfer.find({ payrollRun: run._id });
-        const allDone      = allTransfers.every((t) =>
-          ["SUCCESS", "FAILED"].includes(t.status)
-        );
-
+        const allDone      = allTransfers.every((t) => ["SUCCESS", "FAILED"].includes(t.status));
         if (allDone) {
-          const anyFailed = allTransfers.some((t) => t.status === "FAILED");
-          run.status      = anyFailed ? "PARTIAL_FAILURE" : "COMPLETED";
+          run.status      = allTransfers.some((t) => t.status === "FAILED") ? "PARTIAL_FAILURE" : "COMPLETED";
           run.completedAt = new Date();
           await run.save();
         }
       }
     }
-
     return res.sendStatus(200);
   } catch (error) {
     console.error("Webhook error:", error.message);
@@ -392,42 +287,32 @@ export const webhook = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// history
-// GET /api/payroll/history   (ADMIN)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// history — GET /api/payroll/history
+// ─────────────────────────────────────────────
 export const history = async (req, res) => {
   try {
     const runs = await PayrollRun.find({ organization: req.user.organization })
-      .sort({ createdAt: -1 })
-      .populate("approvedBy", "name email");
-
+      .sort({ createdAt: -1 }).populate("approvedBy", "name email");
     return res.json({ success: true, count: runs.length, payrollRuns: runs });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// getOne
-// GET /api/payroll/:id   (ADMIN)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// getOne — GET /api/payroll/:id
+// ─────────────────────────────────────────────
 export const getOne = async (req, res) => {
   try {
-    const run = await PayrollRun.findOne({
-      _id:          req.params.id,
-      organization: req.user.organization,
-    }).populate("approvedBy", "name email");
+    const run = await PayrollRun.findOne({ _id: req.params.id, organization: req.user.organization })
+      .populate("approvedBy", "name email");
+    if (!run) return res.status(404).json({ success: false, message: "Payroll run not found" });
 
-    if (!run) {
-      return res.status(404).json({ success: false, message: "Payroll run not found" });
-    }
-
-    const transfers = await Transfer.find({ payrollRun: run._id })
-      .populate("worker", "name email department salary");
-
+    const transfers = await Transfer.find({ payrollRun: run._id }).populate("worker", "name email department salary");
     return res.json({ success: true, payrollRun: run, transfers });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+  
