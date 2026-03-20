@@ -1,22 +1,39 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { DM_Serif_Display, Outfit } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const dmSerif = DM_Serif_Display({
+  weight: ["400"],
+  style: ["normal", "italic"],
+  subsets: ["latin"],
+  variable: "--font-serif",
+});
+
+const outfit = Outfit({
+  weight: ["300", "400", "500", "600"],
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
-  title: "SachaPay - Modern Payroll & HR",
-  description: "Payroll and worker financial identity platform",
+  title: "SachaPay — Payroll & Financial Identity",
+  description: "Automated salary disbursement and worker financial identity for Nigerian SMEs",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={`${outfit.variable} ${dmSerif.variable} font-sans`}>
+        {children}
+      </body>
     </html>
   );
 }
