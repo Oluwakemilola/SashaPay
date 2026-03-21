@@ -24,7 +24,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div style={{ fontFamily: "Outfit, sans-serif", background: "#F4F6F5", color: GREEN, overflowX: "hidden" }}>
+    <div style={{ fontFamily: "Outfit, sans-serif", background: CREAM, color: GREEN, overflowX: "hidden" }}>
 
       {/* Nav */}
       <nav style={{
@@ -48,7 +48,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section style={{ minHeight: "100vh", display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", paddingTop: 64 }}>
+      <section style={{ minHeight: "100vh", display: "flex", flexDirection: isMobile ? "column-reverse" : "row", alignItems: "center", paddingTop: 64 }}>
 
         {/* Left */}
         <div style={{ flex: 1, padding: isMobile ? "48px 24px 32px" : "80px 64px", maxWidth: isMobile ? "100%" : 600 }}>
@@ -107,7 +107,7 @@ export default function LandingPage() {
 
         {/* Mobile image */}
         {isMobile && (
-          <div style={{ width: "100%", height: 260, position: "relative", overflow: "hidden" }}>
+          <div style={{ width: "100%", height: 340, position: "relative", overflow: "hidden" }}>
             <img src={HERO_IMAGE} alt="Nigerian business professionals" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 60%, rgba(248,245,237,1) 100%)" }} />
           </div>
@@ -128,7 +128,7 @@ export default function LandingPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20 }}>
             {[
-              { icon: "😤", title: "The Old Way", desc: "Log into your bank. Transfer to each worker one by one. Enter OTP 20 times. Hope you made no mistakes.", bad: true },
+              { icon: "😤", title: "The Old Way", desc: "Log into your bank. Enter 20 account numbers one by one. Transfer manually to each worker. Hope you made no mistakes.", bad: true },
               { icon: "⚡", title: "The SachaPay Way", desc: "Fund your wallet once. Set salaries once. Click Disburse. All 20 workers paid in seconds with full records.", good: true },
               { icon: "📋", title: "The Bonus", desc: "Every payment builds workers' Financial Passports — verifiable income proof they can use for loans, rent, anything.", neutral: true },
             ].map((item, i) => (
@@ -185,7 +185,7 @@ export default function LandingPage() {
           Ready to modernize your payroll?
         </h2>
         <p style={{ fontSize: 16, color: "rgba(248,245,237,0.6)", marginBottom: 32 }}>
-          Free to start. No Paystack account required to try.
+          Free to start. No account numbers to enter. No manual transfers.
         </p>
         <Link href="/register" style={{ display: "inline-block", padding: "16px 40px", background: GOLD, color: "#fff", borderRadius: 12, fontSize: 16, fontWeight: 700, textDecoration: "none" }}>
           Create Your Organisation →
