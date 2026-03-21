@@ -243,4 +243,5 @@ function scoreLabel(s: number) {
   if (s >= 75) return "Very Good";
   if (s >= 60) return "Good";
   return "Fair";
-}
+      }
+                  
