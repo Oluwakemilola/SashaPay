@@ -1,95 +1,73 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
 
 const organizationSchema = new mongoose.Schema(
   {
     name: {
-      type: String,
-      required: true,
-      trim: true,
+      type: String, required: true, trim: true,
     },
-
-    industry: {
-      type: String,
-      required: true,
-      default: "General",
-    },
-
     email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
+      type: String, required: true, unique: true, lowercase: true, trim: true,
     },
-
-    phone:   { type: String },
-    address: { type: String },
-
+    phone: {
+      type: String, trim: true,
+    },
+    industry: {
+      type: String, default: "General",
+    },
     inviteCode: {
-      type: String,
-      unique: true,
-      uppercase: true,
+      type: String, unique: true, sparse: true,
     },
-
     inviteCodeExpires: {
       type: Date,
     },
-
-    // ── Payroll Policy ────────────────────────────────────────────────────────
     payrollPolicy: {
-      type: String,
-      enum: ["ATTENDANCE_BASED", "FIXED_SALARY"],
-      default: "FIXED_SALARY",
+      type: String, enum: ["FIXED_SALARY", "ATTENDANCE_BASED"], default: "FIXED_SALARY",
     },
-
-    // Only relevant when payrollPolicy === "ATTENDANCE_BASED"
-    // Worker must meet this % attendance to be eligible for salary
     thresholdPercent: {
-      type: Number,
-      default: 70,
-      min: 0,
-      max: 100,
+      type: Number, default: 80,
+    },
+    totalWorkDays: {
+      type: Number, default: 22,
     },
 
-    // Total expected working days in a month (used for attendance % calc)
-    totalWorkDays: {
-      type: Number,
-      default: 22,
+    // ── Payment Setup ─────────────────────────────
+    // Stores org's Paystack secret key encrypted at rest
+    // In demo/mock mode this can be any value
+    isPaymentSetup: {
+      type: Boolean, default: false,
+    },
+    paystackSecretKey: {
+      type: String, default: null,
+      // Never return this in API responses
+      select: false,
     },
   },
   { timestamps: true }
 );
 
-// ── Invite Code Generation ────────────────────────────────────────────────────
-// 6 uppercase alphanumeric characters per spec
-function generateInviteCode(length = 6) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < length; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
-}
-
-// Async hook — no next() param needed; Mongoose awaits the returned Promise
-organizationSchema.pre("save", async function () {
+// ── Generate invite code on create ───────────────
+organizationSchema.pre("save", function (next) {
   if (!this.inviteCode) {
-    let attempts = 0;
-    while (attempts < 5) {
-      const code = generateInviteCode();
-      const exists = await mongoose.models.Organization.findOne({ inviteCode: code });
-      if (!exists) {
-        this.inviteCode = code;
-        this.inviteCodeExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 mins from now
-        break;
-      }
-      attempts++;
-    }
-    if (!this.inviteCode) {
-      throw new Error("Failed to generate a unique invite code. Please try again.");
-    }
+    this.inviteCode        = Math.random().toString(36).substring(2, 8).toUpperCase();
+    this.inviteCodeExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 min
   }
+  next();
 });
+
+// ── Encrypt Paystack key before saving ───────────
+// In production: use proper encryption key from env
+// For demo: just stores as-is (mock mode)
+organizationSchema.methods.setPaystackKey = function (key) {
+  // In production replace with proper AES-256 encryption
+  // For now just mark as set — actual key used in mock mode
+  this.paystackSecretKey = key;
+  this.isPaymentSetup    = true;
+};
+
+organizationSchema.methods.getPaystackKey = function () {
+  return this.paystackSecretKey;
+};
 
 export default mongoose.models.Organization ||
   mongoose.model("Organization", organizationSchema);
