@@ -1,11 +1,7 @@
 "use client";
-// ─────────────────────────────────────────────
-// SachaPay — Financial Passport Page
-// File: src/app/(dashboard)/passport/page.tsx
-// ─────────────────────────────────────────────
-
 import { useEffect, useState } from "react";
 import { ShieldCheck, Award, Briefcase, ChevronRight, TrendingUp, Download } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   Tooltip, ResponsiveContainer, AreaChart, Area,
   XAxis, YAxis, CartesianGrid,
@@ -17,34 +13,20 @@ const GOLD  = "#C9962A";
 
 type Payment = {
   month:        string;
-  amount:       number;   // stored in NGN (not kobo)
+  amount:       number;
   organization: { name: string } | null;
   paidAt:       string;
 };
 
-type EmploymentHistory = {
-  orgName:   string;
-  industry:  string;
-  from:      string;
-  to:        string;
-  avgSalary: number;
-};
-
 type Passport = {
-  worker: {
-    name:       string;
-    email:      string;
-    department: string;
-    salary:     number;
-  };
-  // correct backend field names
+  worker: { name: string; email: string; department: string; salary: number; };
   totalIncome:              number;
   totalMonthsEmployed:      number;
   averageMonthlyIncome:     number;
   paymentConsistencyScore:  number;
   incomeStabilityScore:     number;
   payments:                 Payment[];
-  employmentHistory:        EmploymentHistory[];
+  employmentHistory:        any[];
 };
 
 function scoreLabel(s: number) {
@@ -56,6 +38,7 @@ function scoreLabel(s: number) {
 }
 
 export default function PassportPage() {
+  const router = useRouter();
   const [passport, setPassport] = useState<Passport | null>(null);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
@@ -67,36 +50,30 @@ export default function PassportPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, color: "#9AADA6", fontFamily: "Outfit, sans-serif" }}>
-        Loading Financial Passport...
-      </div>
-    );
-  }
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, color: "#9AADA6", fontFamily: "Outfit, sans-serif" }}>
+      Loading Financial Passport...
+    </div>
+  );
 
-  if (error || !passport) {
-    return (
-      <div style={{ maxWidth: 520, margin: "64px auto", textAlign: "center", fontFamily: "Outfit, sans-serif" }}>
-        <div style={{ width: 64, height: 64, background: "#F0F7F4", borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-          <ShieldCheck style={{ width: 28, height: 28, color: GREEN }} />
-        </div>
-        <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: GREEN, marginBottom: 12 }}>No Financial Passport Yet</h2>
-        <p style={{ fontSize: 14, color: "#6B7B72", lineHeight: 1.7 }}>
-          Your financial passport is generated after your first successful salary payment.
-          Once your organisation runs and disburses payroll, your passport will appear here.
-        </p>
-        {error && <p style={{ fontSize: 13, color: "#DC2626", marginTop: 12 }}>{error}</p>}
+  if (error || !passport) return (
+    <div style={{ maxWidth: 520, margin: "64px auto", textAlign: "center", fontFamily: "Outfit, sans-serif" }}>
+      <div style={{ width: 64, height: 64, background: "#F0F7F4", borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+        <ShieldCheck style={{ width: 28, height: 28, color: GREEN }} />
       </div>
-    );
-  }
+      <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: GREEN, marginBottom: 12 }}>No Financial Passport Yet</h2>
+      <p style={{ fontSize: 14, color: "#6B7B72", lineHeight: 1.7 }}>
+        Your financial passport is generated after your first successful salary payment.
+      </p>
+      {error && <p style={{ fontSize: 13, color: "#DC2626", marginTop: 12 }}>{error}</p>}
+    </div>
+  );
 
   const worker   = passport.worker;
   const initials = worker?.name
     ? worker.name.trim().split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
     : "??";
 
-  // Use correct field names from backend
   const totalIncome             = passport.totalIncome             || 0;
   const totalMonthsEmployed     = passport.totalMonthsEmployed     || 0;
   const averageMonthlyIncome    = passport.averageMonthlyIncome    || 0;
@@ -105,7 +82,6 @@ export default function PassportPage() {
   const payments                = passport.payments                || [];
   const employmentHistory       = passport.employmentHistory       || [];
 
-  // Chart data — amount is already in NGN
   const incomeData = payments.slice(-6).map((p) => ({
     month:  p.month,
     amount: p.amount || 0,
@@ -122,9 +98,8 @@ export default function PassportPage() {
       </div>
 
       {/* Profile Card */}
-      <div id="passport-card" style={{ background: "#fff", borderRadius: 20, border: "1px solid #E8EDE8", padding: "28px 32px", marginBottom: 24, position: "relative", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
+      <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #E8EDE8", padding: "28px 32px", marginBottom: 24, position: "relative", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
         <div style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, background: "rgba(11,61,46,0.04)", borderRadius: "50%" }} />
-
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 20, position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <div style={{ width: 72, height: 72, background: "#F0F7F4", color: GREEN, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, border: "1.5px solid rgba(11,61,46,0.15)", flexShrink: 0 }}>
@@ -134,18 +109,16 @@ export default function PassportPage() {
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26, color: GREEN, marginBottom: 6 }}>{worker?.name}</h2>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", fontSize: 13, color: "#6B7B72" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <Briefcase style={{ width: 13, height: 13 }} />
-                  {worker?.department || "Staff"}
+                  <Briefcase style={{ width: 13, height: 13 }} />{worker?.department || "Staff"}
                 </span>
                 <span>{worker?.email}</span>
               </div>
             </div>
           </div>
-
           <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Monthly Salary</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Monthly Average</p>
             <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: 30, color: GREEN, marginBottom: 8 }}>
-              ₦{(averageMonthlyIncome).toLocaleString()}
+              ₦{averageMonthlyIncome.toLocaleString()}
             </p>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#F0FDF4", color: "#059669", padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
               <ShieldCheck style={{ width: 12, height: 12 }} /> Verified Identity
@@ -156,10 +129,12 @@ export default function PassportPage() {
           </div>
         </div>
 
+        {/* Download button — links to certificate page */}
         <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
-          <button onClick={() => window.print()}
+          <button
+            onClick={() => router.push("/passport/certificate")}
             style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", background: GREEN, color: "#F8F5ED", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Outfit, sans-serif" }}>
-            <Download style={{ width: 14, height: 14 }} /> Download PDF
+            <Download style={{ width: 14, height: 14 }} /> Download Certificate
           </button>
         </div>
       </div>
@@ -174,8 +149,6 @@ export default function PassportPage() {
 
       {/* Chart + Payment Log */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-
-        {/* Income chart */}
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: GREEN }}>Verified Income History</h3>
@@ -194,25 +167,19 @@ export default function PassportPage() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EDE6" />
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9AADA6", fontSize: 11 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9AADA6", fontSize: 11 }} tickFormatter={(v) => `₦${v / 1000}k`} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}
-                    formatter={(v: number) => [`₦${v.toLocaleString()}`, "Salary"]}
-                  />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }} formatter={(v: number) => [`₦${v.toLocaleString()}`, "Salary"]} />
                   <Area type="monotone" dataKey="amount" stroke={GREEN} fillOpacity={1} fill="url(#colorIncome)" strokeWidth={2.5} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9AADA6", fontSize: 13 }}>
-                No payment history yet
-              </div>
+              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9AADA6", fontSize: 13 }}>No payment history yet</div>
             )}
           </div>
         </div>
 
-        {/* Payment log */}
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: 20 }}>
           <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: GREEN, marginBottom: 16 }}>Payment Log</h3>
-          <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
+          <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column" }}>
             {payments.length === 0 ? (
               <p style={{ fontSize: 13, color: "#9AADA6" }}>No payments on record.</p>
             ) : (
@@ -223,9 +190,7 @@ export default function PassportPage() {
                     <p style={{ fontSize: 12, color: "#9AADA6" }}>{p.organization?.name || "Your Organisation"}</p>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <p style={{ fontWeight: 700, fontSize: 15, color: GREEN }}>
-                      ₦{(p.amount || 0).toLocaleString()}
-                    </p>
+                    <p style={{ fontWeight: 700, fontSize: 15, color: GREEN }}>₦{(p.amount || 0).toLocaleString()}</p>
                     <p style={{ fontSize: 11, color: "#9AADA6" }}>
                       {p.paidAt ? new Date(p.paidAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" }) : "—"}
                     </p>
@@ -241,7 +206,7 @@ export default function PassportPage() {
       {employmentHistory.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: 20 }}>
           <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: GREEN, marginBottom: 16 }}>Employment History</h3>
-          {employmentHistory.map((e, i) => (
+          {employmentHistory.map((e: any, i: number) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: i < employmentHistory.length - 1 ? "1px solid #F0EDE6" : "none" }}>
               <div>
                 <p style={{ fontWeight: 600, fontSize: 14, color: GREEN }}>{e.orgName}</p>
@@ -250,30 +215,19 @@ export default function PassportPage() {
               <div style={{ textAlign: "right" }}>
                 <p style={{ fontWeight: 600, fontSize: 13, color: GREEN }}>₦{(e.avgSalary || 0).toLocaleString()}/mo avg</p>
                 <p style={{ fontSize: 11, color: "#9AADA6" }}>
-                  {new Date(e.from).toLocaleDateString("en-NG", { month: "short", year: "numeric" })} —{" "}
-                  {new Date(e.to).toLocaleDateString("en-NG", { month: "short", year: "numeric" })}
+                  {new Date(e.from).toLocaleDateString("en-NG", { month: "short", year: "numeric" })} — {new Date(e.to).toLocaleDateString("en-NG", { month: "short", year: "numeric" })}
                 </p>
               </div>
             </div>
           ))}
         </div>
       )}
-
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #passport-card, #passport-card * { visibility: visible; }
-          #passport-card { position: fixed; left: 0; top: 0; width: 100%; padding: 40px; }
-        }
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap');
-      `}</style>
     </div>
   );
 }
 
 function ScoreCard({ title, score, icon: Icon }: { title: string; score: number; icon: React.ElementType }) {
   const safeScore = Math.min(100, Math.max(0, score || 0));
-  const label     = scoreLabel(safeScore);
   return (
     <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: "20px", position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", right: -10, bottom: -10, opacity: 0.04 }}>
@@ -282,11 +236,20 @@ function ScoreCard({ title, score, icon: Icon }: { title: string; score: number;
       <p style={{ fontSize: 12, fontWeight: 600, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 12 }}>{title}</p>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
         <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: 40, color: GREEN, lineHeight: 1 }}>{safeScore}</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: "#059669", background: "#F0FDF4", padding: "3px 8px", borderRadius: 6 }}>{label}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#059669", background: "#F0FDF4", padding: "3px 8px", borderRadius: 6 }}>{scoreLabel(safeScore)}</span>
       </div>
       <div style={{ width: "100%", height: 6, background: "#F0EDE6", borderRadius: 99, overflow: "hidden" }}>
-        <div style={{ height: "100%", background: GREEN, borderRadius: 99, width: `${safeScore}%`, transition: "width 0.5s ease" }} />
+        <div style={{ height: "100%", background: GREEN, borderRadius: 99, width: `${safeScore}%` }} />
       </div>
     </div>
   );
 }
+
+function scoreLabel(s: number) {
+  if (s >= 95) return "Perfect";
+  if (s >= 85) return "Excellent";
+  if (s >= 75) return "Very Good";
+  if (s >= 60) return "Good";
+  return "Fair";
+    }
+                     
