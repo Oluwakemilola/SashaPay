@@ -47,12 +47,21 @@ export default function LandingPage() {
         </div>
       </nav>
 
+      {/* Mobile badge above image */}
+      {isMobile && (
+        <div style={{ paddingTop: 64, paddingLeft: 24, paddingBottom: 12, background: "#F8F5ED" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: `${GOLD}20`, borderRadius: 99, fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>
+            🇳🇬 Built for Nigerian SMEs
+          </div>
+        </div>
+      )}
+
       {/* Hero */}
-      <section style={{ minHeight: "100vh", display: "flex", flexDirection: isMobile ? "column-reverse" : "row", alignItems: "center", paddingTop: 64 }}>
+      <section style={{ minHeight: isMobile ? "auto" : "100vh", display: "flex", flexDirection: isMobile ? "column-reverse" : "row", alignItems: "center", paddingTop: isMobile ? 0 : 64 }}>
 
         {/* Left */}
-        <div style={{ flex: 1, padding: isMobile ? "48px 24px 32px" : "80px 64px", maxWidth: isMobile ? "100%" : 600 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: `${GOLD}20`, borderRadius: 99, fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 24, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>
+        <div style={{ flex: 1, padding: isMobile ? "32px 24px 48px" : "80px 64px", maxWidth: isMobile ? "100%" : 600 }}>
+          <div style={{ display: isMobile ? "none" : "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: `${GOLD}20`, borderRadius: 99, fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 24, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>
             🇳🇬 Built for Nigerian SMEs
           </div>
 
@@ -200,4 +209,5 @@ export default function LandingPage() {
       </footer>
     </div>
   );
-}
+                }
+                
