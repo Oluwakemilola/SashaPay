@@ -1,17 +1,14 @@
-import mongoose from "mongoose";
-import crypto from "crypto";
-
 import User from "../models/User.js";
 import Organization from "../models/Organization.js";
 import BankAccount from "../models/BankAccount.js";
 import PayrollRun from "../models/PayrollRun.js";
 import Transfer from "../models/Transfer.js";
 import FinancialPassport from "../models/FinancialPassport.js";
-import Eligibility from "../models/Eligibility.js";
 
 import { calculateEligibility, getCurrentMonth } from "../utils/eligibility.util.js";
-import { bulkTransfer, verifyWebhookSignature, MOCK_MODE } from "../services/paystack.service.js";
+import { verifyWebhookSignature, MOCK_MODE } from "../services/paystack.service.js";
 import { PAYSTACK_SECRET_KEY } from "../config/env.js";
+import axios from "axios";
 
 // ─────────────────────────────────────────────
 // rebuildFinancialPassport
@@ -55,33 +52,34 @@ const rebuildFinancialPassport = async (workerId) => {
     });
 
     const employmentHistory = Object.values(orgMap).map((e) => ({
-      orgName:   e.orgName,
-      industry:  e.industry,
-      from:      e.from,
-      to:        e.to,
+      orgName:   e.orgName, industry: e.industry, from: e.from, to: e.to,
       avgSalary: Math.round(e.amounts.reduce((s, a) => s + a, 0) / e.amounts.length),
     }));
 
     await FinancialPassport.findOneAndUpdate(
       { worker: workerId },
-      {
-        worker: workerId,
-        totalIncome,
-        totalMonthsEmployed:     monthsEmployed,
-        averageMonthlyIncome,
-        paymentConsistencyScore,
-        incomeStabilityScore,
-        payments,
-        employmentHistory,
-        generatedAt: new Date(),
-      },
+      { worker: workerId, totalIncome, totalMonthsEmployed: monthsEmployed, averageMonthlyIncome, paymentConsistencyScore, incomeStabilityScore, payments, employmentHistory, generatedAt: new Date() },
       { upsert: true, returnDocument: "after" }
     );
-
     console.log(`✅ Passport rebuilt for worker ${workerId}`);
   } catch (err) {
     console.error(`❌ Passport rebuild failed for ${workerId}:`, err.message);
   }
+};
+
+// ─────────────────────────────────────────────
+// bulkTransferWithKey — uses org's own Paystack key
+// ─────────────────────────────────────────────
+const bulkTransferWithKey = async (transfers, orgSecretKey) => {
+  const secretKey = orgSecretKey || PAYSTACK_SECRET_KEY;
+  if (!secretKey) throw new Error("No Paystack key available. Please connect your Paystack account in Settings.");
+
+  const response = await axios.post(
+    "https://api.paystack.co/transfer/bulk",
+    { currency: "NGN", source: "balance", transfers },
+    { headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json" } }
+  );
+  return response.data.data;
 };
 
 // ─────────────────────────────────────────────
@@ -95,6 +93,24 @@ export const createRun = async (req, res) => {
     const organization = await Organization.findById(orgId);
     if (!organization) return res.status(404).json({ success: false, message: "Organization not found" });
 
+    // ── Block if payment not connected ──
+    if (!organization.isPaymentSetup) {
+      return res.status(400).json({
+        success: false,
+        message: "Please connect your Paystack account in Settings before running payroll.",
+      });
+    }
+
+    // ── Block if no active workers ──
+    const workerCount = await User.countDocuments({ organization: orgId, role: "WORKER", isActive: true });
+    if (workerCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No active workers found. Invite staff before running payroll.",
+      });
+    }
+
+    // ── Block duplicate run ──
     const existing = await PayrollRun.findOne({ organization: orgId, month });
     if (existing) {
       return res.status(400).json({
@@ -108,7 +124,6 @@ export const createRun = async (req, res) => {
     const eligibilityResults = await Promise.all(workers.map((w) => calculateEligibility(w, organization, month)));
     const eligibleWorkers    = workers.filter((_, i) => eligibilityResults[i].isEligible);
 
-    // In mock mode accept any bank account, in live mode require VERIFIED
     const eligibleWithBank = [];
     for (const worker of eligibleWorkers) {
       const account = await BankAccount.findOne({
@@ -119,15 +134,20 @@ export const createRun = async (req, res) => {
       if (account) eligibleWithBank.push({ worker, account });
     }
 
-    // If mock mode and no accounts found, include all eligible workers anyway
     const finalList = eligibleWithBank.length > 0 ? eligibleWithBank :
       (MOCK_MODE ? eligibleWorkers.map(w => ({ worker: w, account: null })) : []);
+
+    if (finalList.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No eligible workers found. Make sure workers have salaries set and bank accounts added.",
+      });
+    }
 
     const totalAmount = finalList.reduce((sum, { worker }) => sum + (worker.salary || 0) * 100, 0);
 
     const payrollRun = await PayrollRun.create({
-      organization:    orgId,
-      month,
+      organization: orgId, month,
       totalWorkers:    workers.length,
       eligibleWorkers: finalList.length,
       totalAmount,
@@ -185,63 +205,60 @@ export const disburseRun = async (req, res) => {
     if (!run) return res.status(404).json({ success: false, message: "Payroll run not found" });
     if (run.status !== "APPROVED") return res.status(400).json({ success: false, message: "Payroll must be APPROVED before disbursement" });
 
-    // Pick up PENDING and RETRYING transfers (handles stuck transfers from previous attempts)
+    const org = await Organization.findById(req.user.organization).select("+paystackSecretKey");
+    if (!org) return res.status(404).json({ success: false, message: "Organisation not found" });
+
+    if (!MOCK_MODE && !org.paystackSecretKey) {
+      return res.status(400).json({
+        success: false,
+        message: "Please connect your Paystack account in Settings before disbursing.",
+      });
+    }
+
     const pendingTransfers = await Transfer.find({
       payrollRun: run._id,
       status: { $in: ["PENDING", "RETRYING"] },
     });
 
     if (pendingTransfers.length === 0) {
-      return res.status(400).json({ success: false, message: "No pending transfers found. All workers may have already been paid." });
+      return res.status(400).json({ success: false, message: "No pending transfers found." });
     }
 
     const now = new Date();
 
-    // ── MOCK MODE: immediately mark all SUCCESS and rebuild passports ──
+    // ── MOCK MODE ──
     if (MOCK_MODE) {
-      console.log(`🟡 MOCK MODE: processing ${pendingTransfers.length} transfers instantly`);
-
+      console.log(`🟡 MOCK MODE: processing ${pendingTransfers.length} transfers`);
       await Promise.all(pendingTransfers.map((t) =>
         Transfer.findByIdAndUpdate(t._id, {
-          status: "SUCCESS",
-          paidAt: now,
+          status: "SUCCESS", paidAt: now,
           paystackReference: `MOCK-${run._id}-${t._id}-${Date.now()}`,
         })
       ));
-
-      // Rebuild passport for every worker
       await Promise.all(pendingTransfers.map((t) => rebuildFinancialPassport(t.worker)));
-
-      run.status      = "COMPLETED";
-      run.completedAt = now;
-      run.disbursedAt = now;
+      run.status = "COMPLETED"; run.completedAt = now; run.disbursedAt = now;
       await run.save();
-
       return res.json({
         success: true,
         message: `✅ ${pendingTransfers.length} workers paid successfully`,
         payrollRun: run,
-        transfers: pendingTransfers.length,
         totalPaid: `₦${pendingTransfers.reduce((s, t) => s + Math.round(t.amountKobo / 100), 0).toLocaleString()}`,
       });
     }
 
-    // ── LIVE MODE: call Paystack bulk transfer ──
+    // ── LIVE MODE ──
     const payload = pendingTransfers.map((t) => ({
-      amount:    t.amountKobo,
-      recipient: t.recipientCode,
+      amount: t.amountKobo, recipient: t.recipientCode,
       reference: `SACHAPAY-${run._id}-${t._id}`,
-      reason:    `Salary for ${run.month}`,
+      reason: `Salary for ${run.month}`,
     }));
 
     await Promise.all(pendingTransfers.map((t, i) =>
       Transfer.findByIdAndUpdate(t._id, { paystackReference: payload[i].reference, status: "RETRYING" })
     ));
 
-    await bulkTransfer(payload);
-
-    run.status      = "DISBURSING";
-    run.disbursedAt = now;
+    await bulkTransferWithKey(payload, org.paystackSecretKey);
+    run.status = "DISBURSING"; run.disbursedAt = now;
     await run.save();
 
     return res.json({
@@ -263,6 +280,7 @@ export const retryFailed = async (req, res) => {
     const run = await PayrollRun.findOne({ _id: req.params.id, organization: req.user.organization });
     if (!run) return res.status(404).json({ success: false, message: "Payroll run not found" });
 
+    const org             = await Organization.findById(req.user.organization).select("+paystackSecretKey");
     const failedTransfers = await Transfer.find({ payrollRun: run._id, status: "FAILED" });
     if (failedTransfers.length === 0) return res.status(400).json({ success: false, message: "No failed transfers to retry" });
 
@@ -276,7 +294,7 @@ export const retryFailed = async (req, res) => {
       Transfer.findByIdAndUpdate(t._id, { paystackReference: payload[i].reference, status: "RETRYING", failureReason: null })
     ));
 
-    await bulkTransfer(payload);
+    await bulkTransferWithKey(payload, org?.paystackSecretKey);
     return res.json({ success: true, message: `Retrying ${failedTransfers.length} failed transfers` });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -352,4 +370,4 @@ export const getOne = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-                                               
+      
