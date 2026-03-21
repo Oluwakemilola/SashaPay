@@ -3,10 +3,6 @@
 // SachaPay — Financial Passport Page
 // File: src/app/(dashboard)/passport/page.tsx
 // ─────────────────────────────────────────────
-// Fetches GET /api/passport/me and renders the
-// worker's verified financial identity card.
-// Includes a print-to-PDF download button.
-// ─────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
 import { ShieldCheck, Award, Briefcase, ChevronRight, TrendingUp, Download } from "lucide-react";
@@ -16,21 +12,39 @@ import {
 } from "recharts";
 import { getMyPassport } from "@/lib/api";
 
+const GREEN = "#0B3D2E";
+const GOLD  = "#C9962A";
+
 type Payment = {
-  month: string;
-  amountKobo: number;
-  organization: { name: string };
-  paidAt: string;
+  month:        string;
+  amount:       number;   // stored in NGN (not kobo)
+  organization: { name: string } | null;
+  paidAt:       string;
+};
+
+type EmploymentHistory = {
+  orgName:   string;
+  industry:  string;
+  from:      string;
+  to:        string;
+  avgSalary: number;
 };
 
 type Passport = {
-  worker: { name: string; email: string; department: string; salary: number };
-  totalPaid: number;
-  totalPayments: number;
-  employmentScore: number;
-  incomeScore: number;
-  attendanceScore: number;
-  payments: Payment[];
+  worker: {
+    name:       string;
+    email:      string;
+    department: string;
+    salary:     number;
+  };
+  // correct backend field names
+  totalIncome:              number;
+  totalMonthsEmployed:      number;
+  averageMonthlyIncome:     number;
+  paymentConsistencyScore:  number;
+  incomeStabilityScore:     number;
+  payments:                 Payment[];
+  employmentHistory:        EmploymentHistory[];
 };
 
 function scoreLabel(s: number) {
@@ -48,162 +62,202 @@ export default function PassportPage() {
 
   useEffect(() => {
     getMyPassport()
-      .then((d) => setPassport(d.passport as unknown as Passport))
-      .catch((e) => setError(e.message))
+      .then((d: any) => setPassport(d.passport))
+      .catch((e: any) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const incomeData = (passport?.payments ?? []).slice(-6).map((p) => ({
-    month: p.month,
-    amount: Math.round(p.amountKobo / 100),
-  }));
-
-  const worker   = passport?.worker;
-  const initials = worker?.name
-    ? worker.name.trim().split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
-    : "??";
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] text-muted-foreground">
-        Loading Financial Passport…
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, color: "#9AADA6", fontFamily: "Outfit, sans-serif" }}>
+        Loading Financial Passport...
       </div>
     );
   }
 
   if (error || !passport) {
     return (
-      <div className="max-w-2xl mx-auto mt-16 text-center space-y-4">
-        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-          <ShieldCheck className="w-8 h-8 text-primary" />
+      <div style={{ maxWidth: 520, margin: "64px auto", textAlign: "center", fontFamily: "Outfit, sans-serif" }}>
+        <div style={{ width: 64, height: 64, background: "#F0F7F4", borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+          <ShieldCheck style={{ width: 28, height: 28, color: GREEN }} />
         </div>
-        <h2 className="text-2xl font-bold">No Financial Passport Yet</h2>
-        <p className="text-muted-foreground leading-relaxed">
+        <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: GREEN, marginBottom: 12 }}>No Financial Passport Yet</h2>
+        <p style={{ fontSize: 14, color: "#6B7B72", lineHeight: 1.7 }}>
           Your financial passport is generated after your first successful salary payment.
           Once your organisation runs and disburses payroll, your passport will appear here.
         </p>
-        {error && <p className="text-sm text-destructive mt-2">{error}</p>}
+        {error && <p style={{ fontSize: 13, color: "#DC2626", marginTop: 12 }}>{error}</p>}
       </div>
     );
   }
 
+  const worker   = passport.worker;
+  const initials = worker?.name
+    ? worker.name.trim().split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
+    : "??";
+
+  // Use correct field names from backend
+  const totalIncome             = passport.totalIncome             || 0;
+  const totalMonthsEmployed     = passport.totalMonthsEmployed     || 0;
+  const averageMonthlyIncome    = passport.averageMonthlyIncome    || 0;
+  const paymentConsistencyScore = passport.paymentConsistencyScore || 0;
+  const incomeStabilityScore    = passport.incomeStabilityScore    || 0;
+  const payments                = passport.payments                || [];
+  const employmentHistory       = passport.employmentHistory       || [];
+
+  // Chart data — amount is already in NGN
+  const incomeData = payments.slice(-6).map((p) => ({
+    month:  p.month,
+    amount: p.amount || 0,
+  }));
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div style={{ fontFamily: "Outfit, sans-serif", maxWidth: 900, margin: "0 auto" }}>
+
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#9AADA6", marginBottom: 20 }}>
         <span>Dashboard</span>
-        <ChevronRight className="w-4 h-4" />
-        <span className="font-medium text-foreground">Financial Passport</span>
+        <ChevronRight style={{ width: 14, height: 14 }} />
+        <span style={{ color: GREEN, fontWeight: 600 }}>Financial Passport</span>
       </div>
 
       {/* Profile Card */}
-      <div id="passport-card" className="bg-card w-full rounded-2xl border shadow-sm p-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20" />
-        <div className="flex items-start justify-between relative z-10 flex-wrap gap-6">
-          <div className="flex items-center gap-6">
-            <div className="w-20 h-20 bg-primary/10 text-primary rounded-2xl flex items-center justify-center text-3xl font-bold border border-primary/20">
+      <div id="passport-card" style={{ background: "#fff", borderRadius: 20, border: "1px solid #E8EDE8", padding: "28px 32px", marginBottom: 24, position: "relative", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
+        <div style={{ position: "absolute", top: -40, right: -40, width: 200, height: 200, background: "rgba(11,61,46,0.04)", borderRadius: "50%" }} />
+
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 20, position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <div style={{ width: 72, height: 72, background: "#F0F7F4", color: GREEN, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 700, border: "1.5px solid rgba(11,61,46,0.15)", flexShrink: 0 }}>
               {initials}
             </div>
             <div>
-              <h2 className="text-3xl font-bold tracking-tight">{worker?.name}</h2>
-              <div className="flex items-center gap-3 mt-2 text-muted-foreground text-sm flex-wrap">
-                <span className="flex items-center gap-1.5">
-                  <Briefcase className="w-4 h-4" />
+              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26, color: GREEN, marginBottom: 6 }}>{worker?.name}</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", fontSize: 13, color: "#6B7B72" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <Briefcase style={{ width: 13, height: 13 }} />
                   {worker?.department || "Staff"}
                 </span>
                 <span>{worker?.email}</span>
               </div>
             </div>
           </div>
-          <div className="text-right flex flex-col items-end gap-3">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Monthly Salary</p>
-              <p className="text-3xl font-bold text-primary mt-1">
-                ₦{(worker?.salary ?? 0).toLocaleString()}
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5" /> Verified Identity
+
+          <div style={{ textAlign: "right" }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Monthly Salary</p>
+            <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: 30, color: GREEN, marginBottom: 8 }}>
+              ₦{(averageMonthlyIncome).toLocaleString()}
+            </p>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#F0FDF4", color: "#059669", padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+              <ShieldCheck style={{ width: 12, height: 12 }} /> Verified Identity
             </span>
-            <p className="text-xs text-muted-foreground">
-              {passport.totalPayments} payment{passport.totalPayments !== 1 ? "s" : ""} ·{" "}
-              ₦{Math.round(passport.totalPaid / 100).toLocaleString()} total earned
+            <p style={{ fontSize: 12, color: "#9AADA6", marginTop: 8 }}>
+              {payments.length} payment{payments.length !== 1 ? "s" : ""} · ₦{totalIncome.toLocaleString()} total earned
             </p>
           </div>
         </div>
-        <div className="mt-6 flex justify-end print:hidden">
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-          >
-            <Download className="w-4 h-4" /> Download PDF
+
+        <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={() => window.print()}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", background: GREEN, color: "#F8F5ED", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Outfit, sans-serif" }}>
+            <Download style={{ width: 14, height: 14 }} /> Download PDF
           </button>
         </div>
       </div>
 
       {/* Trust Scores */}
-      <h3 className="text-xl font-bold tracking-tight mt-8 mb-4">Worker Trust Scores</h3>
-      <div className="grid gap-6 md:grid-cols-3">
-        <ScoreCard title="Employment Stability"   score={passport.employmentScore ?? 0} desc={scoreLabel(passport.employmentScore)} icon={Briefcase} />
-        <ScoreCard title="Income Consistency"     score={passport.incomeScore ?? 0}     desc={scoreLabel(passport.incomeScore)}     icon={TrendingUp} />
-        <ScoreCard title="Attendance Reliability" score={passport.attendanceScore ?? 0} desc={scoreLabel(passport.attendanceScore)} icon={Award} />
+      <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 20, color: GREEN, marginBottom: 16 }}>Worker Trust Scores</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
+        <ScoreCard title="Employment Stability"   score={paymentConsistencyScore} icon={Briefcase} />
+        <ScoreCard title="Income Consistency"     score={incomeStabilityScore}    icon={TrendingUp} />
+        <ScoreCard title="Attendance Reliability" score={Math.min(100, payments.length * 20)} icon={Award} />
       </div>
 
-      {/* Charts + Payment Log */}
-      <div className="grid gap-6 md:grid-cols-2 mt-8">
-        <div className="bg-card border rounded-2xl p-6 shadow-sm">
-          <h3 className="font-semibold mb-6 flex items-center gap-2">
-            Verified Income History{" "}
-            <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground font-normal">
-              Last {incomeData.length} months
-            </span>
-          </h3>
-          <div className="h-[250px] w-full">
+      {/* Chart + Payment Log */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+
+        {/* Income chart */}
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: GREEN }}>Verified Income History</h3>
+            <span style={{ fontSize: 11, background: "#F8F5ED", color: "#9AADA6", padding: "3px 8px", borderRadius: 6 }}>Last {incomeData.length} months</span>
+          </div>
+          <div style={{ height: 220 }}>
             {incomeData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={incomeData}>
                   <defs>
                     <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="hsl(var(--primary))" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      <stop offset="5%"  stopColor={GREEN} stopOpacity={0.15} />
+                      <stop offset="95%" stopColor={GREEN} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 12 }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#888", fontSize: 12 }} dx={-10} tickFormatter={(v) => `₦${v / 1000}k`} />
-                  <Tooltip contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} formatter={(v: number) => [`₦${v.toLocaleString()}`, "Salary"]} />
-                  <Area type="step" dataKey="amount" stroke="hsl(var(--primary))" fillOpacity={1} fill="url(#colorIncome)" strokeWidth={3} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EDE6" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#9AADA6", fontSize: 11 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#9AADA6", fontSize: 11 }} tickFormatter={(v) => `₦${v / 1000}k`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}
+                    formatter={(v: number) => [`₦${v.toLocaleString()}`, "Salary"]}
+                  />
+                  <Area type="monotone" dataKey="amount" stroke={GREEN} fillOpacity={1} fill="url(#colorIncome)" strokeWidth={2.5} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No payment history yet</div>
+              <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#9AADA6", fontSize: 13 }}>
+                No payment history yet
+              </div>
             )}
           </div>
         </div>
 
-        <div className="bg-card border rounded-2xl p-6 shadow-sm">
-          <h3 className="font-semibold mb-4">Payment Log</h3>
-          <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-            {passport.payments.length === 0 && (
-              <p className="text-muted-foreground text-sm">No payments on record.</p>
+        {/* Payment log */}
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: 20 }}>
+          <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: GREEN, marginBottom: 16 }}>Payment Log</h3>
+          <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
+            {payments.length === 0 ? (
+              <p style={{ fontSize: 13, color: "#9AADA6" }}>No payments on record.</p>
+            ) : (
+              [...payments].reverse().map((p, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: i < payments.length - 1 ? "1px solid #F0EDE6" : "none" }}>
+                  <div>
+                    <p style={{ fontWeight: 600, fontSize: 14, color: GREEN }}>{p.month}</p>
+                    <p style={{ fontSize: 12, color: "#9AADA6" }}>{p.organization?.name || "Your Organisation"}</p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontWeight: 700, fontSize: 15, color: GREEN }}>
+                      ₦{(p.amount || 0).toLocaleString()}
+                    </p>
+                    <p style={{ fontSize: 11, color: "#9AADA6" }}>
+                      {p.paidAt ? new Date(p.paidAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" }) : "—"}
+                    </p>
+                  </div>
+                </div>
+              ))
             )}
-            {passport.payments.slice().reverse().map((p, i) => (
-              <div key={i} className="flex items-center justify-between text-sm border-b pb-3 last:border-0 last:pb-0">
-                <div>
-                  <p className="font-medium">{p.month}</p>
-                  <p className="text-xs text-muted-foreground">{p.organization?.name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-primary">₦{Math.round(p.amountKobo / 100).toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(p.paidAt).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
-                  </p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
+
+      {/* Employment History */}
+      {employmentHistory.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: 20 }}>
+          <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: GREEN, marginBottom: 16 }}>Employment History</h3>
+          {employmentHistory.map((e, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: i < employmentHistory.length - 1 ? "1px solid #F0EDE6" : "none" }}>
+              <div>
+                <p style={{ fontWeight: 600, fontSize: 14, color: GREEN }}>{e.orgName}</p>
+                <p style={{ fontSize: 12, color: "#9AADA6" }}>{e.industry}</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontWeight: 600, fontSize: 13, color: GREEN }}>₦{(e.avgSalary || 0).toLocaleString()}/mo avg</p>
+                <p style={{ fontSize: 11, color: "#9AADA6" }}>
+                  {new Date(e.from).toLocaleDateString("en-NG", { month: "short", year: "numeric" })} —{" "}
+                  {new Date(e.to).toLocaleDateString("en-NG", { month: "short", year: "numeric" })}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <style>{`
         @media print {
@@ -211,26 +265,27 @@ export default function PassportPage() {
           #passport-card, #passport-card * { visibility: visible; }
           #passport-card { position: fixed; left: 0; top: 0; width: 100%; padding: 40px; }
         }
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap');
       `}</style>
     </div>
   );
 }
 
-function ScoreCard({ title, score, desc, icon: Icon }: {
-  title: string; score: number; desc: string; icon: React.ElementType;
-}) {
+function ScoreCard({ title, score, icon: Icon }: { title: string; score: number; icon: React.ElementType }) {
+  const safeScore = Math.min(100, Math.max(0, score || 0));
+  const label     = scoreLabel(safeScore);
   return (
-    <div className="bg-card border rounded-2xl p-6 shadow-sm relative overflow-hidden group hover:border-primary/40 transition-colors">
-      <div className="absolute right-0 bottom-0 opacity-5 w-32 h-32 -mr-8 -mb-8 pointer-events-none transition-transform group-hover:scale-110">
-        <Icon className="w-full h-full" />
+    <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: "20px", position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", right: -10, bottom: -10, opacity: 0.04 }}>
+        <Icon style={{ width: 80, height: 80 }} />
       </div>
-      <p className="text-sm font-medium text-muted-foreground mb-4">{title}</p>
-      <div className="flex items-baseline gap-3">
-        <span className="text-5xl font-extrabold tracking-tighter text-primary">{score}</span>
-        <span className="text-sm font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">{desc}</span>
+      <p style={{ fontSize: 12, fontWeight: 600, color: "#9AADA6", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 12 }}>{title}</p>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+        <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: 40, color: GREEN, lineHeight: 1 }}>{safeScore}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#059669", background: "#F0FDF4", padding: "3px 8px", borderRadius: 6 }}>{label}</span>
       </div>
-      <div className="w-full bg-muted h-2 rounded-full mt-5 overflow-hidden">
-        <div className="bg-primary h-full rounded-full transition-all" style={{ width: `${score}%` }} />
+      <div style={{ width: "100%", height: 6, background: "#F0EDE6", borderRadius: 99, overflow: "hidden" }}>
+        <div style={{ height: "100%", background: GREEN, borderRadius: 99, width: `${safeScore}%`, transition: "width 0.5s ease" }} />
       </div>
     </div>
   );
