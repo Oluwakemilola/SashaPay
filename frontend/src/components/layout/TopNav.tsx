@@ -1,84 +1,59 @@
 "use client";
-// ─────────────────────────────────────────────
-// SachaPay — Top Navigation Bar
-// File: src/components/layout/TopNav.tsx
-// ─────────────────────────────────────────────
-// Reads the real logged-in user and their organisation
-// name from localStorage. Also wires the logout button.
-// ─────────────────────────────────────────────
-
-import { Bell, LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { clearSession, getStoredOrg, getStoredUser } from "@/lib/api";
+import { Bell, Menu } from "lucide-react";
+import { getStoredUser, getStoredOrg } from "@/lib/api";
 
-export function TopNav() {
-  const router = useRouter();
-  const [userName, setUserName] = useState("...");
-  const [orgName, setOrgName] = useState("...");
-  const [initials, setInitials] = useState("?");
+export function TopNav({ onMenuClick, showMenu }: { onMenuClick?: () => void; showMenu?: boolean }) {
+  const [userName, setUserName] = useState("");
+  const [orgName, setOrgName]   = useState("");
+  const [initials, setInitials] = useState("");
 
   useEffect(() => {
     const user = getStoredUser();
     const org  = getStoredOrg();
-
-    if (user?.name) {
-      setUserName(user.name as string);
-      // Build initials from the first two name parts
-      const parts = (user.name as string).trim().split(" ");
-      setInitials(
-        parts.length >= 2
-          ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-          : parts[0].slice(0, 2).toUpperCase()
-      );
-    }
-
-    if (org?.name) {
-      setOrgName(org.name as string);
-    }
+    const name = (user as any)?.name || "";
+    setUserName(name);
+    setOrgName((org as any)?.name || "");
+    setInitials(name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase());
   }, []);
 
-  const handleLogout = () => {
-    clearSession();
-    router.push("/login");
-  };
-
   return (
-    <header className="h-16 border-b bg-card flex items-center justify-between px-8 sticky top-0 z-10 w-full">
-      {/* Left — breadcrumb / page label placeholder */}
-      <div className="flex items-center gap-4 flex-1">
-        <p className="text-sm text-muted-foreground hidden sm:block">
-          Welcome back, <span className="font-semibold text-foreground">{userName.split(" ")[0]}</span>
+    <header style={{
+      height: 60, background: "#fff",
+      borderBottom: "1px solid #E8EDE8",
+      display: "flex", alignItems: "center",
+      justifyContent: "space-between",
+      padding: "0 20px",
+      position: "sticky", top: 0, zIndex: 30,
+      flexShrink: 0,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {showMenu && (
+          <button onClick={onMenuClick}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#0B3D2E", display: "flex", padding: 4 }}>
+            <Menu style={{ width: 22, height: 22 }} />
+          </button>
+        )}
+        <p style={{ fontSize: 14, color: "#6B7B72", fontFamily: "Outfit, sans-serif" }}>
+          Welcome back, <strong style={{ color: "#0B3D2E" }}>{userName?.split(" ")[0]}</strong>
         </p>
       </div>
 
-      {/* Right — bell + user */}
-      <div className="flex items-center gap-5">
-        <button className="relative text-muted-foreground hover:text-foreground transition-colors" aria-label="Notifications">
-          <Bell className="w-5 h-5" />
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full" />
-        </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ position: "relative", cursor: "pointer" }}>
+          <Bell style={{ width: 20, height: 20, color: "#9AADA6" }} />
+          <div style={{ position: "absolute", top: -2, right: -2, width: 7, height: 7, background: "#C9962A", borderRadius: "50%", border: "1.5px solid #fff" }} />
+        </div>
 
-        <div className="h-8 w-px bg-border" />
-
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden md:block">
-            <p className="text-sm font-medium leading-none">{userName}</p>
-            <p className="text-xs text-muted-foreground mt-1">{orgName}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ textAlign: "right", display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#0B3D2E", fontFamily: "Outfit, sans-serif", lineHeight: 1.2 }}>{userName}</span>
+            <span style={{ fontSize: 11, color: "#9AADA6", fontFamily: "Outfit, sans-serif" }}>{orgName}</span>
           </div>
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#0B3D2E", color: "#F8F5ED", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, fontFamily: "Outfit, sans-serif", flexShrink: 0 }}>
             {initials}
           </div>
         </div>
-
-        <button
-          onClick={handleLogout}
-          className="text-muted-foreground hover:text-destructive transition-colors ml-1"
-          aria-label="Logout"
-          title="Sign out"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
       </div>
     </header>
   );
