@@ -196,7 +196,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer style={{ background: "#071f17", padding: "24px", textAlign: "center" }}>
         <p style={{ fontSize: 12, color: "rgba(248,245,237,0.3)" }}>
-          © 2026 SachaPay · Smarter Payroll for Nigerian Businesses · Built for 3MTT Nigeria Hackathon
+          © 2026 SachaPay · Smarter Payroll Built for Nigerian Businesses · 3MTT Nigeria Hackathon
         </p>
       </footer>
     </div>
