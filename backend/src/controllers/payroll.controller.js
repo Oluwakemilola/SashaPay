@@ -5,7 +5,7 @@ import PayrollRun from "../models/PayrollRun.js";
 import Transfer from "../models/Transfer.js";
 import FinancialPassport from "../models/FinancialPassport.js";
 
-import { calculateEligibility, getCurrentMonth } from "../utils/eligibility.util.js";
+import { calculateEligibility } from "../utils/eligibility.util.js";
 import { verifyWebhookSignature, MOCK_MODE } from "../services/paystack.service.js";
 import { PAYSTACK_SECRET_KEY } from "../config/env.js";
 import axios from "axios";
@@ -16,30 +16,22 @@ import axios from "axios";
 const rebuildFinancialPassport = async (workerId) => {
   try {
     const successfulTransfers = await Transfer.find({ worker: workerId, status: "SUCCESS" })
-      .populate("organization", "name industry")
-      .sort({ paidAt: 1 });
+      .populate("organization", "name industry").sort({ paidAt: 1 });
 
     if (successfulTransfers.length === 0) return;
 
     const totalIncome          = successfulTransfers.reduce((sum, t) => sum + Math.round(t.amountKobo / 100), 0);
     const totalMonthsPaid      = successfulTransfers.length;
     const averageMonthlyIncome = Math.round(totalIncome / totalMonthsPaid);
-
-    const firstPaid      = successfulTransfers[0].paidAt;
-    const lastPaid       = successfulTransfers[totalMonthsPaid - 1].paidAt;
-    const monthsEmployed = Math.max(1,
-      (lastPaid.getFullYear() - firstPaid.getFullYear()) * 12 +
-      (lastPaid.getMonth() - firstPaid.getMonth()) + 1
-    );
-
+    const firstPaid            = successfulTransfers[0].paidAt;
+    const lastPaid             = successfulTransfers[totalMonthsPaid - 1].paidAt;
+    const monthsEmployed       = Math.max(1, (lastPaid.getFullYear() - firstPaid.getFullYear()) * 12 + (lastPaid.getMonth() - firstPaid.getMonth()) + 1);
     const paymentConsistencyScore = Math.min(100, Math.round((totalMonthsPaid / monthsEmployed) * 100));
     const incomeStabilityScore    = paymentConsistencyScore;
 
     const payments = successfulTransfers.map((t) => ({
-      month:        t.month,
-      amount:       Math.round(t.amountKobo / 100),
-      organization: t.organization?._id,
-      paidAt:       t.paidAt,
+      month: t.month, amount: Math.round(t.amountKobo / 100),
+      organization: t.organization?._id, paidAt: t.paidAt,
     }));
 
     const orgMap = {};
@@ -52,7 +44,7 @@ const rebuildFinancialPassport = async (workerId) => {
     });
 
     const employmentHistory = Object.values(orgMap).map((e) => ({
-      orgName:   e.orgName, industry: e.industry, from: e.from, to: e.to,
+      orgName: e.orgName, industry: e.industry, from: e.from, to: e.to,
       avgSalary: Math.round(e.amounts.reduce((s, a) => s + a, 0) / e.amounts.length),
     }));
 
@@ -68,12 +60,11 @@ const rebuildFinancialPassport = async (workerId) => {
 };
 
 // ─────────────────────────────────────────────
-// bulkTransferWithKey — uses org's own Paystack key
+// bulkTransferWithKey
 // ─────────────────────────────────────────────
 const bulkTransferWithKey = async (transfers, orgSecretKey) => {
   const secretKey = orgSecretKey || PAYSTACK_SECRET_KEY;
-  if (!secretKey) throw new Error("No Paystack key available. Please connect your Paystack account in Settings.");
-
+  if (!secretKey) throw new Error("No Paystack key available.");
   const response = await axios.post(
     "https://api.paystack.co/transfer/bulk",
     { currency: "NGN", source: "balance", transfers },
@@ -93,15 +84,15 @@ export const createRun = async (req, res) => {
     const organization = await Organization.findById(orgId);
     if (!organization) return res.status(404).json({ success: false, message: "Organization not found" });
 
-    // ── Block if payment not connected ──
+    // Block if payment not connected
     if (!organization.isPaymentSetup) {
       return res.status(400).json({
         success: false,
-        message: "Please connect your Paystack account in Settings before running payroll.",
+        message: "Please connect your payment method in Settings before running payroll.",
       });
     }
 
-    // ── Block if no active workers ──
+    // Block if no active workers
     const workerCount = await User.countDocuments({ organization: orgId, role: "WORKER", isActive: true });
     if (workerCount === 0) {
       return res.status(400).json({
@@ -110,7 +101,7 @@ export const createRun = async (req, res) => {
       });
     }
 
-    // ── Block duplicate run ──
+    // Block duplicate run
     const existing = await PayrollRun.findOne({ organization: orgId, month });
     if (existing) {
       return res.status(400).json({
@@ -127,8 +118,7 @@ export const createRun = async (req, res) => {
     const eligibleWithBank = [];
     for (const worker of eligibleWorkers) {
       const account = await BankAccount.findOne({
-        worker:    worker._id,
-        isPrimary: true,
+        worker: worker._id, isPrimary: true,
         ...(MOCK_MODE ? {} : { verificationStatus: "VERIFIED" }),
       });
       if (account) eligibleWithBank.push({ worker, account });
@@ -145,6 +135,17 @@ export const createRun = async (req, res) => {
     }
 
     const totalAmount = finalList.reduce((sum, { worker }) => sum + (worker.salary || 0) * 100, 0);
+
+    // Check wallet has enough balance if using wallet mode
+    if (organization.paymentMethod === "WALLET") {
+      const totalNGN = totalAmount / 100;
+      if ((organization.walletBalance || 0) < totalNGN) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient wallet balance. Required: ₦${totalNGN.toLocaleString()}, Available: ₦${(organization.walletBalance || 0).toLocaleString()}. Please fund your wallet in Settings.`,
+        });
+      }
+    }
 
     const payrollRun = await PayrollRun.create({
       organization: orgId, month,
@@ -208,45 +209,64 @@ export const disburseRun = async (req, res) => {
     const org = await Organization.findById(req.user.organization).select("+paystackSecretKey");
     if (!org) return res.status(404).json({ success: false, message: "Organisation not found" });
 
-    if (!MOCK_MODE && !org.paystackSecretKey) {
-      return res.status(400).json({
-        success: false,
-        message: "Please connect your Paystack account in Settings before disbursing.",
-      });
-    }
-
     const pendingTransfers = await Transfer.find({
       payrollRun: run._id,
       status: { $in: ["PENDING", "RETRYING"] },
     });
+    if (pendingTransfers.length === 0) return res.status(400).json({ success: false, message: "No pending transfers found." });
 
-    if (pendingTransfers.length === 0) {
-      return res.status(400).json({ success: false, message: "No pending transfers found." });
-    }
+    const totalNGN = pendingTransfers.reduce((s, t) => s + Math.round(t.amountKobo / 100), 0);
+    const now      = new Date();
 
-    const now = new Date();
+    // ── WALLET MODE ──
+    if (org.paymentMethod === "WALLET" || MOCK_MODE) {
+      // Check wallet balance for wallet mode
+      if (org.paymentMethod === "WALLET" && (org.walletBalance || 0) < totalNGN) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient wallet balance. Required: ₦${totalNGN.toLocaleString()}, Available: ₦${(org.walletBalance || 0).toLocaleString()}`,
+        });
+      }
 
-    // ── MOCK MODE ──
-    if (MOCK_MODE) {
-      console.log(`🟡 MOCK MODE: processing ${pendingTransfers.length} transfers`);
+      // Mark transfers as SUCCESS
       await Promise.all(pendingTransfers.map((t) =>
         Transfer.findByIdAndUpdate(t._id, {
           status: "SUCCESS", paidAt: now,
-          paystackReference: `MOCK-${run._id}-${t._id}-${Date.now()}`,
+          paystackReference: `SACHAPAY-${org.paymentMethod || "MOCK"}-${run._id}-${t._id}`,
         })
       ));
+
+      // Deduct from wallet balance
+      if (org.paymentMethod === "WALLET") {
+        await Organization.findByIdAndUpdate(org._id, {
+          $inc: { walletBalance: -totalNGN },
+        });
+        console.log(`💰 Wallet deducted: ₦${totalNGN.toLocaleString()} from ${org.name}`);
+      }
+
+      // Rebuild passports
       await Promise.all(pendingTransfers.map((t) => rebuildFinancialPassport(t.worker)));
+
       run.status = "COMPLETED"; run.completedAt = now; run.disbursedAt = now;
       await run.save();
+
+      // Get updated wallet balance
+      const updatedOrg = await Organization.findById(org._id);
+
       return res.json({
         success: true,
         message: `✅ ${pendingTransfers.length} workers paid successfully`,
-        payrollRun: run,
-        totalPaid: `₦${pendingTransfers.reduce((s, t) => s + Math.round(t.amountKobo / 100), 0).toLocaleString()}`,
+        payrollRun:    run,
+        totalPaid:     `₦${totalNGN.toLocaleString()}`,
+        walletBalance: updatedOrg?.walletBalance || 0,
       });
     }
 
-    // ── LIVE MODE ──
+    // ── PAYSTACK MODE ──
+    if (!org.paystackSecretKey) {
+      return res.status(400).json({ success: false, message: "Please connect your Paystack account in Settings." });
+    }
+
     const payload = pendingTransfers.map((t) => ({
       amount: t.amountKobo, recipient: t.recipientCode,
       reference: `SACHAPAY-${run._id}-${t._id}`,
@@ -261,11 +281,7 @@ export const disburseRun = async (req, res) => {
     run.status = "DISBURSING"; run.disbursedAt = now;
     await run.save();
 
-    return res.json({
-      success: true,
-      message: `Bulk transfer initiated for ${pendingTransfers.length} workers`,
-      payrollRun: run,
-    });
+    return res.json({ success: true, message: `Bulk transfer initiated for ${pendingTransfers.length} workers`, payrollRun: run });
   } catch (error) {
     console.error("disburseRun error:", error.message);
     return res.status(500).json({ success: false, message: error.message });
