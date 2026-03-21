@@ -29,39 +29,31 @@ export default function LandingPage() {
       {/* Nav */}
       <nav style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-        padding: "0 24px", height: 64,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 20px 0 20px", height: 64,
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
         background: isScrolled ? "rgba(248,245,237,0.95)" : "transparent",
         backdropFilter: isScrolled ? "blur(12px)" : "none",
         borderBottom: isScrolled ? "1px solid rgba(11,61,46,0.1)" : "none",
         transition: "all 0.3s ease",
       }}>
         <Logo size={28} />
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link href="/login" style={{ padding: "9px 18px", borderRadius: 10, fontSize: 14, fontWeight: 600, color: GREEN, textDecoration: "none", border: `1.5px solid ${GREEN}` }}>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href="/login" style={{ padding: "9px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, color: GREEN, textDecoration: "none", border: `1.5px solid ${GREEN}` }}>
             Login
           </Link>
-          <Link href="/register" style={{ padding: "9px 18px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: GREEN, color: CREAM, textDecoration: "none" }}>
+          <Link href="/register" style={{ padding: "9px 20px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: GREEN, color: CREAM, textDecoration: "none" }}>
             Get Started
           </Link>
         </div>
       </nav>
 
-      {/* Mobile badge above image */}
-      {isMobile && (
-        <div style={{ paddingTop: 64, paddingLeft: 24, paddingBottom: 12, background: "#F8F5ED" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: `${GOLD}20`, borderRadius: 99, fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>
-            🇳🇬 Built for Nigerian SMEs
-          </div>
-        </div>
-      )}
-
       {/* Hero */}
-      <section style={{ minHeight: isMobile ? "auto" : "100vh", display: "flex", flexDirection: isMobile ? "column-reverse" : "row", alignItems: "center", paddingTop: isMobile ? 0 : 64 }}>
+      <section style={{ minHeight: "100vh", display: "flex", flexDirection: isMobile ? "column-reverse" : "row", alignItems: "center", paddingTop: 64 }}>
 
         {/* Left */}
-        <div style={{ flex: 1, padding: isMobile ? "32px 24px 48px" : "80px 64px", maxWidth: isMobile ? "100%" : 600 }}>
-          <div style={{ display: isMobile ? "none" : "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: `${GOLD}20`, borderRadius: 99, fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 24, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>
+        <div style={{ flex: 1, padding: isMobile ? "32px 24px 28px" : "80px 64px", maxWidth: isMobile ? "100%" : 600 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: `${GOLD}20`, borderRadius: 99, fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 24, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>
             🇳🇬 Built for Nigerian SMEs
           </div>
 
@@ -204,10 +196,9 @@ export default function LandingPage() {
       {/* Footer */}
       <footer style={{ background: "#071f17", padding: "24px", textAlign: "center" }}>
         <p style={{ fontSize: 12, color: "rgba(248,245,237,0.3)" }}>
-          © 2026 SachaPay · Built for Nigerian SMEs · 3MTT Hackathon
+          © 2026 SachaPay · Smarter Payroll for Nigerian Businesses · Built for 3MTT Nigeria Hackathon
         </p>
       </footer>
     </div>
   );
-                }
-                
+}
