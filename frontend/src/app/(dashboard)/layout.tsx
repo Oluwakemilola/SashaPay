@@ -21,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#F8F5ED", fontFamily: "Outfit, sans-serif" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "#F4F6F5", fontFamily: "Outfit, sans-serif" }}>
 
       {/* Mobile overlay */}
       {!isDesktop && sidebarOpen && (
