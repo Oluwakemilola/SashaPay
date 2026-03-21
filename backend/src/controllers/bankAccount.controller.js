@@ -1,18 +1,14 @@
 import BankAccount from "../models/BankAccount.js";
 import User from "../models/User.js";
+import {
+  verifyBankAccount,
+  createTransferRecipient,
+  MOCK_MODE,
+} from "../services/paystack.service.js";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// addBankAccount
-// POST /api/bank-accounts
-//
-// Worker submits their bank account details.
-// Creates a PENDING record, then calls Paystack to verify.
-// On successful verification:
-//   - accountName is saved (from Paystack)
-//   - recipientCode is saved (used for all future transfers)
-//   - verificationStatus → VERIFIED
-//   - if it's the worker's first account, isPrimary is set to true automatically
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// addBankAccount — POST /api/bank
+// ─────────────────────────────────────────────
 export const addBankAccount = async (req, res) => {
   try {
     const { bankName, bankCode, accountNumber } = req.body;
@@ -24,7 +20,7 @@ export const addBankAccount = async (req, res) => {
       });
     }
 
-    // Block duplicate account numbers for the same user
+    // Block duplicates
     const duplicate = await BankAccount.findOne({
       worker: req.user._id,
       accountNumber,
@@ -36,18 +32,39 @@ export const addBankAccount = async (req, res) => {
       });
     }
 
-    // ── Paystack Verification (Day 3: replace demo block with real call) ──────
-    // Real call will be:
-    //   const { accountName, recipientCode } = await paystackService.verifyAccount(bankCode, accountNumber)
-    //
-    // Demo mode — simulate a successful verification
-    const accountName   = req.user.name.toUpperCase(); // Paystack returns this
-    const recipientCode = `RCP_demo_${req.user._id.toString().slice(-6)}`;
-    const verified      = true; // Paystack confirmed the account exists
+    let accountName   = req.user.name.toUpperCase();
+    let recipientCode = `MOCK_RCP_${req.user._id.toString().slice(-6)}`;
+    let verified      = true;
 
-    // Is this the worker's first account? Make it primary automatically
+    if (!MOCK_MODE) {
+      // ── LIVE / TEST MODE: call real Paystack ──
+      try {
+        // Step 1 — verify account number exists
+        const verification = await verifyBankAccount(accountNumber, bankCode);
+        accountName = verification.account_name;
+
+        // Step 2 — create transfer recipient to get recipient_code
+        const recipient = await createTransferRecipient(
+          accountName,
+          accountNumber,
+          bankCode
+        );
+        recipientCode = recipient.recipient_code;
+        verified      = true;
+
+        console.log(`✅ Bank verified: ${accountName} — ${recipientCode}`);
+      } catch (paystackError) {
+        console.error("Paystack verification error:", paystackError.message);
+        return res.status(400).json({
+          success: false,
+          message: "Could not verify bank account. Please check your account number and bank, then try again.",
+        });
+      }
+    }
+
+    // First account → make primary automatically
     const existingCount = await BankAccount.countDocuments({ worker: req.user._id });
-    const isPrimary = existingCount === 0;
+    const isPrimary     = existingCount === 0;
 
     const account = await BankAccount.create({
       worker:             req.user._id,
@@ -62,164 +79,93 @@ export const addBankAccount = async (req, res) => {
       isPrimary,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: verified
-        ? `Account verified — ${accountName} at ${bankName}.${isPrimary ? " Set as primary account." : ""}`
-        : "Account could not be verified. Check your account number and try again.",
+      message: `Account verified — ${accountName} at ${bankName}.${isPrimary ? " Set as primary account." : ""}`,
       account,
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// getMyAccounts
-// GET /api/bank-accounts
-//
-// Returns all bank accounts belonging to the logged-in worker.
-// Sorted: primary account first, then by date added.
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// getMyAccounts — GET /api/bank
+// ─────────────────────────────────────────────
 export const getMyAccounts = async (req, res) => {
   try {
     const accounts = await BankAccount.find({ worker: req.user._id })
-      .sort({ isPrimary: -1, createdAt: 1 }); // primary first
-
-    res.json({
-      success: true,
-      count: accounts.length,
-      accounts,
-    });
+      .sort({ isPrimary: -1, createdAt: 1 });
+    return res.json({ success: true, count: accounts.length, accounts });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// setPrimary
-// PATCH /api/bank-accounts/:id/set-primary
-//
-// Worker switches which account receives their salary.
-// Steps:
-//  1. Confirm the target account belongs to this user and is verified
-//  2. Un-flag the current primary account
-//  3. Flag the new account as primary
-// All in one transaction so there's never a moment with 0 primary accounts.
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// setPrimary — PATCH /api/bank/:id/set-primary
+// ─────────────────────────────────────────────
 export const setPrimary = async (req, res) => {
   try {
     const account = await BankAccount.findOne({
-      _id: req.params.id,
-      worker: req.user._id,
+      _id: req.params.id, worker: req.user._id,
     });
+    if (!account) return res.status(404).json({ success: false, message: "Account not found." });
+    if (account.verificationStatus !== "VERIFIED") return res.status(400).json({ success: false, message: "Only verified accounts can be set as primary." });
+    if (account.isPrimary) return res.status(400).json({ success: false, message: "This account is already your primary account." });
 
-    if (!account) {
-      return res.status(404).json({ success: false, message: "Account not found." });
-    }
-    if (account.verificationStatus !== "VERIFIED") {
-      return res.status(400).json({
-        success: false,
-        message: "Only verified accounts can be set as primary.",
-      });
-    }
-    if (account.isPrimary) {
-      return res.status(400).json({
-        success: false,
-        message: "This account is already your primary account.",
-      });
-    }
-
-    // Un-primary the old one, primary the new one
-    await BankAccount.updateMany(
-      { worker: req.user._id, isPrimary: true },
-      { isPrimary: false }
-    );
-
+    await BankAccount.updateMany({ worker: req.user._id, isPrimary: true }, { isPrimary: false });
     account.isPrimary = true;
     await account.save();
 
-    res.json({
-      success: true,
-      message: `${account.bankName} — ${account.accountNumber} is now your primary account.`,
-      account,
-    });
+    return res.json({ success: true, message: `${account.bankName} — ${account.accountNumber} is now your primary account.`, account });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// deleteAccount
-// DELETE /api/bank-accounts/:id
-//
-// Worker removes a saved bank account.
-// Guard: cannot delete the primary account if it's the only one left.
-// (Deleting the only primary account would block salary disbursement.)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// deleteAccount — DELETE /api/bank/:id
+// ─────────────────────────────────────────────
 export const deleteAccount = async (req, res) => {
   try {
     const account = await BankAccount.findOne({
-      _id: req.params.id,
-      worker: req.user._id,
+      _id: req.params.id, worker: req.user._id,
     });
-
-    if (!account) {
-      return res.status(404).json({ success: false, message: "Account not found." });
-    }
-
-    // Block deletion if it's the only account or the active primary
+    if (!account) return res.status(404).json({ success: false, message: "Account not found." });
     if (account.isPrimary) {
       const total = await BankAccount.countDocuments({ worker: req.user._id });
-      if (total === 1) {
-        return res.status(400).json({
-          success: false,
-          message: "Cannot delete your only bank account. Add another account first.",
-        });
-      }
-      return res.status(400).json({
-        success: false,
-        message: "Cannot delete your primary account. Set another account as primary first.",
-      });
+      if (total === 1) return res.status(400).json({ success: false, message: "Cannot delete your only bank account. Add another first." });
+      return res.status(400).json({ success: false, message: "Cannot delete your primary account. Set another as primary first." });
     }
-
     await account.deleteOne();
-
-    res.json({ success: true, message: "Bank account removed." });
+    return res.json({ success: true, message: "Bank account removed." });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// getStaffAccounts  (Admin / Manager only)
-// GET /api/bank-accounts/staff/:userId
-//
-// Admin views a specific worker's bank accounts.
-// Used in the payroll run screen to confirm bank details before disbursement.
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// getStaffAccounts — GET /api/bank/staff/:userId (Admin)
+// ─────────────────────────────────────────────
 export const getStaffAccounts = async (req, res) => {
   try {
-    // Confirm the target user is in the same org as the admin
     const targetUser = await User.findOne({
-      _id: req.params.userId,
-      organization: req.user.organization,
+      _id: req.params.userId, organization: req.user.organization,
     });
-
-    if (!targetUser) {
-      return res.status(404).json({ success: false, message: "Staff member not found." });
-    }
+    if (!targetUser) return res.status(404).json({ success: false, message: "Staff member not found." });
 
     const accounts = await BankAccount.find({ worker: req.params.userId })
       .sort({ isPrimary: -1, createdAt: 1 });
 
-    res.json({
+    return res.json({
       success: true,
       user: { id: targetUser._id, name: targetUser.name, department: targetUser.department },
       count: accounts.length,
       accounts,
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
+                                 
