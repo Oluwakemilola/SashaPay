@@ -4,7 +4,6 @@ import { MOCK_MODE } from "../services/paystack.service.js";
 // ─────────────────────────────────────────────
 // getSettings
 // GET /api/settings
-// Returns org settings (never returns the actual key)
 // ─────────────────────────────────────────────
 export const getSettings = async (req, res) => {
   try {
@@ -19,9 +18,8 @@ export const getSettings = async (req, res) => {
         industry:         org.industry,
         payrollPolicy:    org.payrollPolicy,
         thresholdPercent: org.thresholdPercent,
-        isPaymentSetup:   org.isPaymentSetup,
+        isPaymentSetup:   org.isPaymentSetup || false,
         mockMode:         MOCK_MODE,
-        // Never return the actual key
         paystackKeyHint:  org.isPaymentSetup ? "sk_**********************" : null,
       },
     });
@@ -33,9 +31,6 @@ export const getSettings = async (req, res) => {
 // ─────────────────────────────────────────────
 // setupPayment
 // POST /api/settings/payment
-// Admin connects their Paystack account
-// In demo mode: accepts any key and marks as connected
-// In production: validates key with Paystack before saving
 // ─────────────────────────────────────────────
 export const setupPayment = async (req, res) => {
   try {
@@ -48,25 +43,24 @@ export const setupPayment = async (req, res) => {
       });
     }
 
-    // Fetch org with the key field (select: false by default)
-    const org = await Organization.findById(req.user.organization).select("+paystackSecretKey");
+    const org = await Organization.findById(req.user.organization);
     if (!org) return res.status(404).json({ success: false, message: "Organisation not found" });
 
+    // Demo/mock mode — accept any key
     if (MOCK_MODE) {
-      // Demo mode — accept any key, mark as connected
       org.paystackSecretKey = paystackSecretKey.trim();
       org.isPaymentSetup    = true;
       await org.save();
 
       return res.json({
-        success: true,
-        message: "Payment account connected successfully (demo mode)",
+        success:        true,
+        message:        "Payment account connected successfully",
         isPaymentSetup: true,
-        mockMode: true,
+        mockMode:       true,
       });
     }
 
-    // Production mode — validate key with Paystack first
+    // Production mode — validate with Paystack first
     try {
       const axios   = (await import("axios")).default;
       const testRes = await axios.get("https://api.paystack.co/balance", {
@@ -75,14 +69,15 @@ export const setupPayment = async (req, res) => {
 
       if (!testRes.data.status) throw new Error("Invalid key");
 
-      org.setPaystackKey(paystackSecretKey.trim());
+      org.paystackSecretKey = paystackSecretKey.trim();
+      org.isPaymentSetup    = true;
       await org.save();
 
       return res.json({
-        success: true,
-        message: "Paystack account connected and verified successfully",
+        success:        true,
+        message:        "Paystack account connected and verified",
         isPaymentSetup: true,
-        balance: testRes.data.data,
+        balance:        testRes.data.data,
       });
     } catch {
       return res.status(400).json({
@@ -112,12 +107,14 @@ export const updatePayrollPolicy = async (req, res) => {
     await org.save();
 
     return res.json({
-      success: true,
-      message: "Payroll policy updated",
-      settings: { payrollPolicy: org.payrollPolicy, thresholdPercent: org.thresholdPercent },
+      success:  true,
+      message:  "Payroll policy updated",
+      settings: {
+        payrollPolicy:    org.payrollPolicy,
+        thresholdPercent: org.thresholdPercent,
+      },
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-    
