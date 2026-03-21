@@ -14,6 +14,7 @@ import passportRoutes     from "./src/routes/passport.routes.js";
 import analyticsRoutes    from "./src/routes/analytics.routes.js";
 import agentRoutes        from "./src/routes/agent.routes.js";
 import staffRoutes        from "./src/routes/staff.routes.js";
+import settingsRouter     from "./src/routes/settings.routes.js";
 
 const app = express();
 
@@ -45,6 +46,8 @@ app.use("/api/passport",      passportRoutes);
 app.use("/api/analytics",     analyticsRoutes);
 app.use("/api/agent",         agentRoutes);
 app.use("/api/staff",         staffRoutes);
+app.use("/api/settings",      settingsRouter);
+
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
