@@ -8,7 +8,7 @@ const GOLD  = "#C9962A";
 const CREAM = "#F8F5ED";
 
 // Nigerian business Unsplash photos
-const HERO_IMAGE = "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=900&q=80&fit=crop";
+const HERO_IMAGE = "/hero.jpg";
 
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -24,7 +24,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div style={{ fontFamily: "Outfit, sans-serif", background: CREAM, color: GREEN, overflowX: "hidden" }}>
+    <div style={{ fontFamily: "Outfit, sans-serif", background: "#F4F6F5", color: GREEN, overflowX: "hidden" }}>
 
       {/* Nav */}
       <nav style={{
