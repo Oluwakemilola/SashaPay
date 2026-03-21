@@ -1,108 +1,68 @@
 import axios from "axios";
-import Organization from "../models/Organization.js";
-import { MOCK_MODE } from "../services/paystack.service.js";
+import crypto from "crypto";
+import { PAYSTACK_SECRET_KEY } from "../config/env.js";
 
 // ─────────────────────────────────────────────
-// getSettings — GET /api/settings
+// MOCK_MODE — true when no Paystack key is set
+// Controllers import this to skip real API calls
 // ─────────────────────────────────────────────
-export const getSettings = async (req, res) => {
-  try {
-    const org = await Organization.findById(req.user.organization);
-    if (!org) return res.status(404).json({ success: false, message: "Organisation not found" });
+export const MOCK_MODE = !PAYSTACK_SECRET_KEY || PAYSTACK_SECRET_KEY === "your_paystack_key_here";
 
-    return res.json({
-      success: true,
-      settings: {
-        orgName:          org.name,
-        orgEmail:         org.email,
-        industry:         org.industry,
-        payrollPolicy:    org.payrollPolicy,
-        thresholdPercent: org.thresholdPercent,
-        isPaymentSetup:   org.isPaymentSetup || false,
-        mockMode:         MOCK_MODE,
-        paystackKeyHint:  org.isPaymentSetup ? "sk_**********************" : null,
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+if (MOCK_MODE) {
+  console.log("🟡 Paystack running in MOCK MODE — no real transfers will be made");
+}
+
+const paystackAPI = axios.create({
+  baseURL: "https://api.paystack.co",
+  headers: {
+    Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+    "Content-Type": "application/json",
+  },
+});
+
+// ── 1. Verify Bank Account ────────────────────────────────────────────────────
+export const verifyBankAccount = async (accountNumber, bankCode) => {
+  if (MOCK_MODE) {
+    return { account_number: accountNumber, account_name: "MOCK ACCOUNT NAME", bank_id: bankCode };
   }
+  const { data } = await paystackAPI.get("/bank/resolve", {
+    params: { account_number: accountNumber, bank_code: bankCode },
+  });
+  return data.data;
 };
 
-// ─────────────────────────────────────────────
-// setupPayment — POST /api/settings/payment
-// ─────────────────────────────────────────────
-export const setupPayment = async (req, res) => {
-  try {
-    const { paystackSecretKey } = req.body;
-
-    if (!paystackSecretKey || paystackSecretKey.trim().length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: "A valid Paystack secret key is required",
-      });
-    }
-
-    const org = await Organization.findById(req.user.organization);
-    if (!org) return res.status(404).json({ success: false, message: "Organisation not found" });
-
-    // ── MOCK MODE: accept any key ──
-    if (MOCK_MODE) {
-      org.paystackSecretKey = paystackSecretKey.trim();
-      org.isPaymentSetup    = true;
-      await org.save();
-      return res.json({
-        success:        true,
-        message:        "Payment account connected successfully",
-        isPaymentSetup: true,
-        mockMode:       true,
-      });
-    }
-
-    // ── LIVE MODE: validate with Paystack ──
-    try {
-      const testRes = await axios.get("https://api.paystack.co/balance", {
-        headers: { Authorization: `Bearer ${paystackSecretKey.trim()}` },
-      });
-      if (!testRes.data.status) throw new Error("Invalid key");
-      org.paystackSecretKey = paystackSecretKey.trim();
-      org.isPaymentSetup    = true;
-      await org.save();
-      return res.json({
-        success:        true,
-        message:        "Paystack account connected and verified",
-        isPaymentSetup: true,
-        balance:        testRes.data.data,
-      });
-    } catch {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid Paystack secret key. Please check and try again.",
-      });
-    }
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+// ── 2. Create Transfer Recipient ──────────────────────────────────────────────
+export const createTransferRecipient = async (name, accountNumber, bankCode) => {
+  if (MOCK_MODE) {
+    return { recipient_code: `MOCK_RCP_${Date.now()}`, id: Date.now() };
   }
+  const { data } = await paystackAPI.post("/transferrecipient", {
+    type: "nuban", name,
+    account_number: accountNumber,
+    bank_code: bankCode,
+    currency: "NGN",
+  });
+  return data.data;
 };
 
-// ─────────────────────────────────────────────
-// updatePayrollPolicy — PATCH /api/settings/payroll-policy
-// ─────────────────────────────────────────────
-export const updatePayrollPolicy = async (req, res) => {
-  try {
-    const { payrollPolicy, thresholdPercent } = req.body;
-    const org = await Organization.findById(req.user.organization);
-    if (!org) return res.status(404).json({ success: false, message: "Organisation not found" });
-
-    if (payrollPolicy)    org.payrollPolicy    = payrollPolicy;
-    if (thresholdPercent) org.thresholdPercent = Number(thresholdPercent);
-    await org.save();
-
-    return res.json({
-      success:  true,
-      message:  "Payroll policy updated",
-      settings: { payrollPolicy: org.payrollPolicy, thresholdPercent: org.thresholdPercent },
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+// ── 3. Bulk Transfer ──────────────────────────────────────────────────────────
+export const bulkTransfer = async (transfers) => {
+  if (MOCK_MODE) {
+    console.log(`🟡 MOCK: simulating bulk transfer for ${transfers.length} workers`);
+    return transfers.map((t) => ({ ...t, status: "success", transfer_code: `MOCK_TRF_${Date.now()}` }));
   }
+  const { data } = await paystackAPI.post("/transfer/bulk", {
+    currency: "NGN", source: "balance", transfers,
+  });
+  return data.data;
+};
+
+// ── 4. Webhook Signature Verification ────────────────────────────────────────
+export const verifyWebhookSignature = (rawBody, signature) => {
+  if (MOCK_MODE) return true;
+  const hash = crypto
+    .createHmac("sha512", PAYSTACK_SECRET_KEY)
+    .update(rawBody)
+    .digest("hex");
+  return hash === signature;
 };
