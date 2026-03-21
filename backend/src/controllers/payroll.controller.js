@@ -17,53 +17,71 @@ import { PAYSTACK_SECRET_KEY } from "../config/env.js";
 // rebuildFinancialPassport
 // ─────────────────────────────────────────────
 const rebuildFinancialPassport = async (workerId) => {
-  const successfulTransfers = await Transfer.find({ worker: workerId, status: "SUCCESS" })
-    .populate("organization", "name industry")
-    .sort({ paidAt: 1 });
+  try {
+    const successfulTransfers = await Transfer.find({ worker: workerId, status: "SUCCESS" })
+      .populate("organization", "name industry")
+      .sort({ paidAt: 1 });
 
-  if (successfulTransfers.length === 0) return;
+    if (successfulTransfers.length === 0) return;
 
-  const totalIncome          = successfulTransfers.reduce((sum, t) => sum + Math.round(t.amountKobo / 100), 0);
-  const totalMonthsPaid      = successfulTransfers.length;
-  const averageMonthlyIncome = Math.round(totalIncome / totalMonthsPaid);
+    const totalIncome          = successfulTransfers.reduce((sum, t) => sum + Math.round(t.amountKobo / 100), 0);
+    const totalMonthsPaid      = successfulTransfers.length;
+    const averageMonthlyIncome = Math.round(totalIncome / totalMonthsPaid);
 
-  const firstPaid      = successfulTransfers[0].paidAt;
-  const lastPaid       = successfulTransfers[totalMonthsPaid - 1].paidAt;
-  const monthsEmployed = (lastPaid.getFullYear() - firstPaid.getFullYear()) * 12 +
-    (lastPaid.getMonth() - firstPaid.getMonth()) + 1;
+    const firstPaid      = successfulTransfers[0].paidAt;
+    const lastPaid       = successfulTransfers[totalMonthsPaid - 1].paidAt;
+    const monthsEmployed = Math.max(1,
+      (lastPaid.getFullYear() - firstPaid.getFullYear()) * 12 +
+      (lastPaid.getMonth() - firstPaid.getMonth()) + 1
+    );
 
-  const paymentConsistencyScore = Math.min(100, Math.round((totalMonthsPaid / monthsEmployed) * 100));
-  const incomeStabilityScore    = paymentConsistencyScore;
+    const paymentConsistencyScore = Math.min(100, Math.round((totalMonthsPaid / monthsEmployed) * 100));
+    const incomeStabilityScore    = paymentConsistencyScore;
 
-  const payments = successfulTransfers.map((t) => ({
-    month:        t.month,
-    amount:       Math.round(t.amountKobo / 100),
-    organization: t.organization?._id,
-    paidAt:       t.paidAt,
-  }));
+    const payments = successfulTransfers.map((t) => ({
+      month:        t.month,
+      amount:       Math.round(t.amountKobo / 100),
+      organization: t.organization?._id,
+      paidAt:       t.paidAt,
+    }));
 
-  const orgMap = {};
-  successfulTransfers.forEach((t) => {
-    const key = t.organization?._id?.toString();
-    if (!key) return;
-    if (!orgMap[key]) orgMap[key] = { orgName: t.organization.name, industry: t.organization.industry, from: t.paidAt, to: t.paidAt, amounts: [] };
-    orgMap[key].to = t.paidAt;
-    orgMap[key].amounts.push(Math.round(t.amountKobo / 100));
-  });
+    const orgMap = {};
+    successfulTransfers.forEach((t) => {
+      const key = t.organization?._id?.toString();
+      if (!key) return;
+      if (!orgMap[key]) orgMap[key] = { orgName: t.organization.name, industry: t.organization.industry, from: t.paidAt, to: t.paidAt, amounts: [] };
+      orgMap[key].to = t.paidAt;
+      orgMap[key].amounts.push(Math.round(t.amountKobo / 100));
+    });
 
-  const employmentHistory = Object.values(orgMap).map((e) => ({
-    orgName:   e.orgName,
-    industry:  e.industry,
-    from:      e.from,
-    to:        e.to,
-    avgSalary: Math.round(e.amounts.reduce((s, a) => s + a, 0) / e.amounts.length),
-  }));
+    const employmentHistory = Object.values(orgMap).map((e) => ({
+      orgName:   e.orgName,
+      industry:  e.industry,
+      from:      e.from,
+      to:        e.to,
+      avgSalary: Math.round(e.amounts.reduce((s, a) => s + a, 0) / e.amounts.length),
+    }));
 
-  await FinancialPassport.findOneAndUpdate(
-    { worker: workerId },
-    { worker: workerId, totalIncome, totalMonthsEmployed: monthsEmployed, averageMonthlyIncome, paymentConsistencyScore, incomeStabilityScore, payments, employmentHistory, generatedAt: new Date() },
-    { upsert: true, returnDocument: "after" }
-  );
+    await FinancialPassport.findOneAndUpdate(
+      { worker: workerId },
+      {
+        worker: workerId,
+        totalIncome,
+        totalMonthsEmployed:     monthsEmployed,
+        averageMonthlyIncome,
+        paymentConsistencyScore,
+        incomeStabilityScore,
+        payments,
+        employmentHistory,
+        generatedAt: new Date(),
+      },
+      { upsert: true, returnDocument: "after" }
+    );
+
+    console.log(`✅ Passport rebuilt for worker ${workerId}`);
+  } catch (err) {
+    console.error(`❌ Passport rebuild failed for ${workerId}:`, err.message);
+  }
 };
 
 // ─────────────────────────────────────────────
@@ -90,8 +108,7 @@ export const createRun = async (req, res) => {
     const eligibilityResults = await Promise.all(workers.map((w) => calculateEligibility(w, organization, month)));
     const eligibleWorkers    = workers.filter((_, i) => eligibilityResults[i].isEligible);
 
-    // ── MOCK MODE: accept any bank account (not just VERIFIED)
-    // ── LIVE MODE: require verified primary account
+    // In mock mode accept any bank account, in live mode require VERIFIED
     const eligibleWithBank = [];
     for (const worker of eligibleWorkers) {
       const account = await BankAccount.findOne({
@@ -102,24 +119,30 @@ export const createRun = async (req, res) => {
       if (account) eligibleWithBank.push({ worker, account });
     }
 
-    const totalAmount = eligibleWithBank.reduce((sum, { worker }) => sum + (worker.salary || 0) * 100, 0);
+    // If mock mode and no accounts found, include all eligible workers anyway
+    const finalList = eligibleWithBank.length > 0 ? eligibleWithBank :
+      (MOCK_MODE ? eligibleWorkers.map(w => ({ worker: w, account: null })) : []);
+
+    const totalAmount = finalList.reduce((sum, { worker }) => sum + (worker.salary || 0) * 100, 0);
 
     const payrollRun = await PayrollRun.create({
-      organization: orgId, month,
-      totalWorkers: workers.length,
-      eligibleWorkers: eligibleWithBank.length,
-      totalAmount, status: "DRAFT",
+      organization:    orgId,
+      month,
+      totalWorkers:    workers.length,
+      eligibleWorkers: finalList.length,
+      totalAmount,
+      status: "DRAFT",
     });
 
     await Promise.all(
-      eligibleWithBank.map(({ worker, account }) =>
+      finalList.map(({ worker, account }) =>
         Transfer.create({
           payrollRun:    payrollRun._id,
           worker:        worker._id,
           organization:  orgId,
           month,
           amountKobo:    (worker.salary || 0) * 100,
-          recipientCode: account.recipientCode || `MOCK-${account._id}`,
+          recipientCode: account?.recipientCode || `MOCK-${worker._id}`,
           status:        "PENDING",
         })
       )
@@ -127,10 +150,11 @@ export const createRun = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `Payroll run created for ${month}. ${eligibleWithBank.length} workers eligible.`,
+      message: `Payroll run created for ${month}. ${finalList.length} workers eligible.`,
       payrollRun,
     });
   } catch (error) {
+    console.error("createRun error:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -161,34 +185,31 @@ export const disburseRun = async (req, res) => {
     if (!run) return res.status(404).json({ success: false, message: "Payroll run not found" });
     if (run.status !== "APPROVED") return res.status(400).json({ success: false, message: "Payroll must be APPROVED before disbursement" });
 
-    const pendingTransfers = await Transfer.find({ payrollRun: run._id, status: "PENDING" });
-    if (pendingTransfers.length === 0) return res.status(400).json({ success: false, message: "No pending transfers found" });
+    // Pick up PENDING and RETRYING transfers (handles stuck transfers from previous attempts)
+    const pendingTransfers = await Transfer.find({
+      payrollRun: run._id,
+      status: { $in: ["PENDING", "RETRYING"] },
+    });
 
-    const payload = pendingTransfers.map((t) => ({
-      amount:    t.amountKobo,
-      recipient: t.recipientCode,
-      reference: `SACHAPAY-${run._id}-${t._id}`,
-      reason:    `Salary for ${run.month}`,
-    }));
+    if (pendingTransfers.length === 0) {
+      return res.status(400).json({ success: false, message: "No pending transfers found. All workers may have already been paid." });
+    }
 
-    // Update references
-    await Promise.all(pendingTransfers.map((t, i) =>
-      Transfer.findByIdAndUpdate(t._id, { paystackReference: payload[i].reference, status: "RETRYING" })
-    ));
-
-    // Call Paystack (or mock)
-    await bulkTransfer(payload);
+    const now = new Date();
 
     // ── MOCK MODE: immediately mark all SUCCESS and rebuild passports ──
     if (MOCK_MODE) {
-      console.log("🟡 MOCK MODE: marking all transfers as SUCCESS");
-      const now = new Date();
+      console.log(`🟡 MOCK MODE: processing ${pendingTransfers.length} transfers instantly`);
 
       await Promise.all(pendingTransfers.map((t) =>
-        Transfer.findByIdAndUpdate(t._id, { status: "SUCCESS", paidAt: now }, { returnDocument: "after" })
+        Transfer.findByIdAndUpdate(t._id, {
+          status: "SUCCESS",
+          paidAt: now,
+          paystackReference: `MOCK-${run._id}-${t._id}-${Date.now()}`,
+        })
       ));
 
-      // Rebuild passport for every worker who was paid
+      // Rebuild passport for every worker
       await Promise.all(pendingTransfers.map((t) => rebuildFinancialPassport(t.worker)));
 
       run.status      = "COMPLETED";
@@ -198,14 +219,29 @@ export const disburseRun = async (req, res) => {
 
       return res.json({
         success: true,
-        message: `✅ ${pendingTransfers.length} workers paid successfully (mock mode)`,
+        message: `✅ ${pendingTransfers.length} workers paid successfully`,
         payrollRun: run,
+        transfers: pendingTransfers.length,
+        totalPaid: `₦${pendingTransfers.reduce((s, t) => s + Math.round(t.amountKobo / 100), 0).toLocaleString()}`,
       });
     }
 
-    // Live mode — Paystack webhook will handle status updates
+    // ── LIVE MODE: call Paystack bulk transfer ──
+    const payload = pendingTransfers.map((t) => ({
+      amount:    t.amountKobo,
+      recipient: t.recipientCode,
+      reference: `SACHAPAY-${run._id}-${t._id}`,
+      reason:    `Salary for ${run.month}`,
+    }));
+
+    await Promise.all(pendingTransfers.map((t, i) =>
+      Transfer.findByIdAndUpdate(t._id, { paystackReference: payload[i].reference, status: "RETRYING" })
+    ));
+
+    await bulkTransfer(payload);
+
     run.status      = "DISBURSING";
-    run.disbursedAt = new Date();
+    run.disbursedAt = now;
     await run.save();
 
     return res.json({
@@ -214,7 +250,7 @@ export const disburseRun = async (req, res) => {
       payrollRun: run,
     });
   } catch (error) {
-    console.error("Disburse error:", error.message);
+    console.error("disburseRun error:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -309,10 +345,11 @@ export const getOne = async (req, res) => {
       .populate("approvedBy", "name email");
     if (!run) return res.status(404).json({ success: false, message: "Payroll run not found" });
 
-    const transfers = await Transfer.find({ payrollRun: run._id }).populate("worker", "name email department salary");
+    const transfers = await Transfer.find({ payrollRun: run._id })
+      .populate("worker", "name email department salary");
     return res.json({ success: true, payrollRun: run, transfers });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-  
+                                               
