@@ -156,7 +156,7 @@ export default function LandingPage() {
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 16 }}>
             {[
               { icon: "💰", title: "Smart Payroll", desc: "Automated bulk salary disbursement with one click" },
-              { icon: "📍", title: "Attendance", desc: "Real-time clock-in/out with location tracking" },
+              { icon: "📅", title: "Attendance", desc: "Real-time clock-in/out with location tracking" },
               { icon: "🛡️", title: "Financial Passport", desc: "Portable, verifiable income history for workers" },
               { icon: "🤖", title: "AI Assistant", desc: "Ask questions about payroll, attendance, policies" },
             ].map((f, i) => (
