@@ -7,7 +7,6 @@ const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
 const CREAM = "#F8F5ED";
 
-// Nigerian business Unsplash photos
 const HERO_IMAGE = "/hero.jpg";
 
 export default function LandingPage() {
@@ -97,11 +96,17 @@ export default function LandingPage() {
             />
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(248,245,237,0.3) 0%, transparent 40%)" }} />
 
-            {/* Floating card */}
-            <div style={{ position: "absolute", bottom: 48, left: -24, background: "#fff", borderRadius: 16, padding: "16px 20px", boxShadow: "0 20px 60px rgba(11,61,46,0.15)", minWidth: 200 }}>
+            {/* Bottom scrim so card is readable */}
+            <div style={{
+              position: "absolute", bottom: 0, left: 0, right: 0, height: 200,
+              background: "linear-gradient(to top, rgba(11,61,46,0.65) 0%, transparent 100%)"
+            }} />
+
+            {/* Floating card — fixed left value */}
+            <div style={{ position: "absolute", bottom: 36, left: 24, background: "#fff", borderRadius: 16, padding: "16px 24px", boxShadow: "0 20px 60px rgba(11,61,46,0.3)", minWidth: 220 }}>
               <p style={{ fontSize: 11, color: "#9AADA6", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 4 }}>This Month</p>
-              <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: GREEN }}>₦2.4M Disbursed</p>
-              <p style={{ fontSize: 12, color: "#059669", marginTop: 4, fontWeight: 600 }}>✓ 48 workers paid on time</p>
+              <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: GREEN, margin: 0 }}>₦2.4M Disbursed</p>
+              <p style={{ fontSize: 12, color: "#059669", marginTop: 6, fontWeight: 600 }}>✓ 48 workers paid on time</p>
             </div>
           </div>
         )}
@@ -201,4 +206,5 @@ export default function LandingPage() {
       </footer>
     </div>
   );
-}
+                }
+                         
