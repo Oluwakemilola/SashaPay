@@ -73,7 +73,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       </div>
 
       <p style={{ fontSize: 10, color: "#4ADE80", fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase", padding: "0 20px 14px", opacity: 0.8, flexShrink: 0 }}>
-        {isAdmin ? orgName : "SachaPay Worker"}
+        {orgName || (isAdmin ? "SachaPay Enterprise" : "SachaPay Worker")}
       </p>
 
       {/* Nav */}
