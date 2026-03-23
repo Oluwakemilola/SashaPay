@@ -337,4 +337,33 @@ function RegisterFormContent() {
   );
 }
 
-function SuccessModal({ code, onClose }: { cod
+function SuccessModal({ code, onClose }: { code: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(11,61,46,0.5)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 20 }}>
+      <div style={{ background: "#fff", borderRadius: 24, padding: 36, maxWidth: 400, width: "100%", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+        <div style={{ width: 64, height: 64, background: "#F0FDF4", color: "#059669", borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <CheckCircle size={32} />
+        </div>
+        <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: "#0B3D2E", marginBottom: 8 }}>Organisation created!</h3>
+        <p style={{ color: "#6B7B72", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>Share this invite code with your staff so they can join SachaPay.</p>
+        <div style={{ background: "#F8F5ED", border: "2px dashed #C9962A", borderRadius: 14, padding: 20, marginBottom: 20, position: "relative" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#C9962A", textTransform: "uppercase", letterSpacing: 2, marginBottom: 6 }}>Invite Code</div>
+          <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 32, color: "#0B3D2E", letterSpacing: 6 }}>{code}</div>
+          <button onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+            style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: 8, background: copied ? "#059669" : "#fff", border: "1px solid #E8EDE8", color: copied ? "#fff" : "#9AADA6", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Copy size={14} />
+          </button>
+        </div>
+        <button onClick={onClose}
+          style={{ width: "100%", background: "#0B3D2E", color: "#F8F5ED", padding: "14px", borderRadius: 12, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "'Outfit', sans-serif", fontSize: 15 }}>
+          Go to Dashboard →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function RegisterPage() {
+  return <Suspense><RegisterFormContent /></Suspense>;
+}
