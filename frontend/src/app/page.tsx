@@ -95,11 +95,8 @@ export default function LandingPage() {
                 alt="Nigerian business professionals"
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
-              {/* Left fade */}
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(248,245,237,0.15) 0%, transparent 30%)" }} />
-              {/* Bottom scrim */}
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 180, background: "linear-gradient(to top, rgba(11,61,46,0.7) 0%, transparent 100%)" }} />
-              {/* Floating card */}
               <div style={{ position: "absolute", bottom: 28, left: 24, background: "#fff", borderRadius: 16, padding: "16px 24px", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 220 }}>
                 <p style={{ fontSize: 11, color: "#9AADA6", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 4 }}>This Month</p>
                 <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: GREEN, margin: 0 }}>₦2.4M Disbursed</p>
@@ -114,7 +111,7 @@ export default function LandingPage() {
           <div style={{ width: "100%", padding: "20px 20px 0" }}>
             <div style={{ width: "100%", height: 300, position: "relative", overflow: "hidden", borderRadius: 24, boxShadow: "0 16px 40px rgba(11,61,46,0.2)" }}>
               <img src={HERO_IMAGE} alt="Nigerian business professionals" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, rgba(11,61,46,0.3) 100%)" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, rgba(248,245,237,1) 100%)" }} />
             </div>
           </div>
         )}
@@ -206,4 +203,4 @@ export default function LandingPage() {
       </footer>
     </div>
   );
-          }
+      }
