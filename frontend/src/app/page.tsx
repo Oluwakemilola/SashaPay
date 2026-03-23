@@ -1,209 +1,369 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Logo from "@/components/brand/Logo";
+import { CheckCircle, Copy, X } from "lucide-react";
 
-const GREEN = "#0B3D2E";
-const GOLD  = "#C9962A";
-const CREAM = "#F8F5ED";
+const API  = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
+const G    = "#0B3D2E";
+const GOLD = "#C9962A";
 
-const HERO_IMAGE = "/hero.jpg";
-
-export default function LandingPage() {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobile, setIsMobile]     = useState(false);
-
+// ── Fixed toast notification ──────────────────
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 20);
-    const onResize = () => setIsMobile(window.innerWidth < 768);
-    onScroll(); onResize();
-    window.addEventListener("scroll", onScroll);
-    window.addEventListener("resize", onResize);
-    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onResize); };
-  }, []);
+    const t = setTimeout(onClose, 5000);
+    return () => clearTimeout(t);
+  }, [onClose]);
 
   return (
-    <div style={{ fontFamily: "Outfit, sans-serif", background: CREAM, color: GREEN, overflowX: "hidden" }}>
-
-      {/* Nav */}
-      <nav style={{
-        position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-        padding: "0 20px 0 20px", height: 64,
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-        background: isScrolled ? "rgba(248,245,237,0.95)" : "transparent",
-        backdropFilter: isScrolled ? "blur(12px)" : "none",
-        borderBottom: isScrolled ? "1px solid rgba(11,61,46,0.1)" : "none",
-        transition: "all 0.3s ease",
-      }}>
-        <Logo size={28} />
-        <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Link href="/login" style={{ padding: "9px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, color: GREEN, textDecoration: "none", border: `1.5px solid ${GREEN}` }}>
-            Login
-          </Link>
-          <Link href="/register" style={{ padding: "9px 20px", borderRadius: 10, fontSize: 14, fontWeight: 700, background: GREEN, color: CREAM, textDecoration: "none" }}>
-            Get Started
-          </Link>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section style={{ minHeight: "100vh", display: "flex", flexDirection: isMobile ? "column-reverse" : "row", alignItems: "center", paddingTop: 64 }}>
-
-        {/* Left */}
-        <div style={{ flex: 1, padding: isMobile ? "32px 24px 28px" : "80px 64px", maxWidth: isMobile ? "100%" : 600 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: `${GOLD}20`, borderRadius: 99, fontSize: 12, fontWeight: 700, color: GOLD, marginBottom: 24, letterSpacing: "0.5px", textTransform: "uppercase" as const }}>
-            🇳🇬 Built for Nigerian SMEs
-          </div>
-
-          <h1 style={{
-            fontFamily: "'DM Serif Display', serif",
-            fontSize: isMobile ? "36px" : "52px",
-            lineHeight: 1.1, color: GREEN, marginBottom: 24,
-          }}>
-            Smarter Payroll.<br />
-            <span style={{ color: GOLD }}>Zero Stress.</span>
-          </h1>
-
-          <p style={{ fontSize: isMobile ? 15 : 17, color: "#3A5248", lineHeight: 1.7, marginBottom: 32, maxWidth: 480 }}>
-            Stop paying workers one by one. SachaPay automates bulk salary disbursement and builds every worker a verified financial identity — their Financial Passport.
-          </p>
-
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link href="/register" style={{ padding: "14px 28px", background: GREEN, color: CREAM, borderRadius: 12, fontSize: 15, fontWeight: 700, textDecoration: "none", display: "inline-block" }}>
-              Start for Free →
-            </Link>
-            <Link href="/login" style={{ padding: "14px 28px", border: `2px solid ${GREEN}`, color: GREEN, borderRadius: 12, fontSize: 15, fontWeight: 600, textDecoration: "none", display: "inline-block" }}>
-              Sign In
-            </Link>
-          </div>
-
-          {/* Trust badges */}
-          <div style={{ display: "flex", gap: 20, marginTop: 40, flexWrap: "wrap" }}>
-            {["🔒 Bank-grade security", "⚡ Instant disbursement", "📋 Financial Passport"].map(badge => (
-              <span key={badge} style={{ fontSize: 12, color: "#6B7B72", fontWeight: 500 }}>{badge}</span>
-            ))}
-          </div>
-        </div>
-
-        {/* Right — Nigerian image with padding */}
-        {!isMobile && (
-          <div style={{ flex: 1, height: "100vh", padding: "24px 32px 24px 0", display: "flex", alignItems: "center" }}>
-            <div style={{ position: "relative", width: "100%", height: "calc(100% - 48px)", borderRadius: 28, overflow: "hidden", boxShadow: "0 32px 80px rgba(11,61,46,0.25)" }}>
-              <img
-                src={HERO_IMAGE}
-                alt="Nigerian business professionals"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-              {/* Left fade */}
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(248,245,237,0.15) 0%, transparent 30%)" }} />
-              {/* Bottom scrim */}
-              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 180, background: "linear-gradient(to top, rgba(11,61,46,0.7) 0%, transparent 100%)" }} />
-              {/* Floating card */}
-              <div style={{ position: "absolute", bottom: 28, left: 24, background: "#fff", borderRadius: 16, padding: "16px 24px", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", minWidth: 220 }}>
-                <p style={{ fontSize: 11, color: "#9AADA6", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.5px", marginBottom: 4 }}>This Month</p>
-                <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: GREEN, margin: 0 }}>₦2.4M Disbursed</p>
-                <p style={{ fontSize: 12, color: "#059669", marginTop: 6, fontWeight: 600 }}>✓ 48 workers paid on time</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Mobile image */}
-        {isMobile && (
-          <div style={{ width: "100%", padding: "20px 20px 0" }}>
-            <div style={{ width: "100%", height: 300, position: "relative", overflow: "hidden", borderRadius: 24, boxShadow: "0 16px 40px rgba(11,61,46,0.2)" }}>
-              <img src={HERO_IMAGE} alt="Nigerian business professionals" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, rgba(11,61,46,0.3) 100%)" }} />
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Why SachaPay */}
-      <section style={{ background: GREEN, padding: isMobile ? "60px 24px" : "80px 64px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 48 }}>
-            <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: isMobile ? 28 : 38, color: CREAM, marginBottom: 12 }}>
-              Why SachaPay?
-            </h2>
-            <p style={{ fontSize: 16, color: "rgba(248,245,237,0.6)", maxWidth: 480, margin: "0 auto" }}>
-              The problem is simple: paying 20 workers manually every month is slow, error-prone and humiliating.
-            </p>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20 }}>
-            {[
-              { icon: "😤", title: "The Old Way", desc: "Log into your bank. Enter 20 account numbers one by one. Transfer manually to each worker. Hope you made no mistakes.", bad: true },
-              { icon: "⚡", title: "The SachaPay Way", desc: "Fund your wallet once. Set salaries once. Click Disburse. All 20 workers paid in seconds with full records.", good: true },
-              { icon: "📋", title: "The Bonus", desc: "Every payment builds workers' Financial Passports — verifiable income proof they can use for loans, rent, anything.", neutral: true },
-            ].map((item, i) => (
-              <div key={i} style={{ background: item.good ? GOLD : "rgba(255,255,255,0.06)", borderRadius: 16, padding: "28px 24px", border: item.good ? "none" : "1px solid rgba(255,255,255,0.1)" }}>
-                <div style={{ fontSize: 32, marginBottom: 14 }}>{item.icon}</div>
-                <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 20, color: item.good ? "#fff" : CREAM, marginBottom: 10 }}>{item.title}</h3>
-                <p style={{ fontSize: 14, color: item.good ? "rgba(255,255,255,0.85)" : "rgba(248,245,237,0.55)", lineHeight: 1.7 }}>{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section style={{ padding: isMobile ? "60px 24px" : "80px 64px", background: CREAM }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: isMobile ? 28 : 38, color: GREEN, textAlign: "center", marginBottom: 8 }}>
-            Everything You Need
-          </h2>
-          <p style={{ fontSize: 15, color: "#6B7B72", textAlign: "center", marginBottom: 48 }}>
-            Built specifically for Nigerian SMEs
-          </p>
-
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 16 }}>
-            {[
-              { icon: "💰", title: "Smart Payroll", desc: "Automated bulk salary disbursement with one click" },
-              { icon: "📅", title: "Attendance", desc: "Real-time clock-in/out with location tracking" },
-              { icon: "🛡️", title: "Financial Passport", desc: "Portable, verifiable income history for workers" },
-              { icon: "🤖", title: "AI Assistant", desc: "Ask questions about payroll, attendance, policies" },
-            ].map((f, i) => (
-              <div key={i} style={{ background: "#fff", borderRadius: 16, padding: "24px 20px", border: "1px solid #E8EDE8", textAlign: "center" }}>
-                <div style={{ fontSize: 28, marginBottom: 12 }}>{f.icon}</div>
-                <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 16, color: GREEN, marginBottom: 8 }}>{f.title}</h3>
-                <p style={{ fontSize: 13, color: "#6B7B72", lineHeight: 1.6 }}>{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Quote */}
-      <section style={{ padding: isMobile ? "48px 24px" : "60px 64px", background: "#F0F7F4" }}>
-        <div style={{ maxWidth: 600, margin: "0 auto", textAlign: "center" }}>
-          <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: isMobile ? 20 : 26, color: GREEN, lineHeight: 1.5, fontStyle: "italic" }}>
-            "The worker who can prove their income will always get the loan."
-          </p>
-          <p style={{ fontSize: 13, color: "#9AADA6", marginTop: 12 }}>— The SachaPay Promise</p>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section style={{ padding: isMobile ? "60px 24px" : "80px 64px", background: GREEN, textAlign: "center" }}>
-        <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: isMobile ? 28 : 40, color: CREAM, marginBottom: 16 }}>
-          Ready to modernize your payroll?
-        </h2>
-        <p style={{ fontSize: 16, color: "rgba(248,245,237,0.6)", marginBottom: 32 }}>
-          Free to start. No account numbers to enter. No manual transfers.
-        </p>
-        <Link href="/register" style={{ display: "inline-block", padding: "16px 40px", background: GOLD, color: "#fff", borderRadius: 12, fontSize: 16, fontWeight: 700, textDecoration: "none" }}>
-          Create Your Organisation →
-        </Link>
-      </section>
-
-      {/* Footer */}
-      <footer style={{ background: "#071f17", padding: "24px", textAlign: "center" }}>
-        <p style={{ fontSize: 12, color: "rgba(248,245,237,0.3)" }}>
-          © 2026 SachaPay · Smarter Payroll Built for Nigerian Businesses · 3MTT Nigeria Hackathon
-        </p>
-      </footer>
+    <div style={{
+      position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
+      zIndex: 9999, background: "#FEF2F2", border: "1px solid #FECACA",
+      borderRadius: 12, padding: "14px 20px", fontSize: 14, color: "#DC2626",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.12)", display: "flex",
+      alignItems: "center", gap: 10, maxWidth: "90vw", minWidth: 280,
+      fontFamily: "Outfit, sans-serif",
+    }}>
+      <span style={{ flex: 1 }}>⚠ {message}</span>
+      <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#DC2626", padding: 0, display: "flex" }}>
+        <X style={{ width: 16, height: 16 }} />
+      </button>
     </div>
   );
-                }
+}
+
+function RegisterFormContent() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const [tab, setTab]         = useState<"company" | "join">(searchParams.get("tab") === "join" ? "join" : "company");
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [orgForm, setOrgForm] = useState({
+    orgName: "", orgEmail: "", orgPhone: "", industry: "",
+    adminName: "", adminEmail: "", adminPassword: "", payrollPolicy: "FIXED_SALARY"
+  });
+  const [joinForm, setJoinForm]         = useState({ name: "", email: "", password: "", inviteCode: "" });
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [regInviteCode, setRegInviteCode]       = useState("");
+
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 860);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const handleRegisterOrg = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true); setError("");
+    try {
+      const res  = await fetch(`${API}/api/auth/register-org`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orgForm),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.message || "Registration failed"); return; }
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("organization", JSON.stringify(data.organization));
+      setRegInviteCode(data.organization?.inviteCode || data.inviteCode || "");
+      setShowSuccessModal(true);
+    } catch { setError("Could not connect to server. Please try again."); }
+    finally { setLoading(false); }
+  };
+
+  const handleJoinTeam = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true); setError("");
+    try {
+      const res  = await fetch(`${API}/api/auth/register`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(joinForm),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.message || "Could not join team"); return; }
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("organization", JSON.stringify(data.organization));
+      router.push("/dashboard");
+    } catch { setError("Could not connect to server. Please try again."); }
+    finally { setLoading(false); }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "11px 14px", border: "1.5px solid #E5E7EB",
+    borderRadius: 10, outline: "none", fontFamily: "'Outfit', sans-serif",
+    fontSize: 14, color: "#1A1A1A", background: "#fff", WebkitAppearance: "none",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6,
+  };
+
+  const steps = tab === "company"
+    ? [
+        { n: "1", t: "Register your company",  d: "Set up your organisation in seconds" },
+        { n: "2", t: "Choose payroll policy",   d: "Fixed salary or attendance-based" },
+        { n: "3", t: "Invite your team",        d: "Share code and run payroll in minutes" }
+      ]
+    : [
+        { n: "1", t: "Get invite code",          d: "Ask your admin for the current code" },
+        { n: "2", t: "Create your account",      d: "Join your organisation in seconds" },
+        { n: "3", t: "Build financial identity", d: "Every payment builds your history" }
+      ];
+
+  return (
+    <div style={{ fontFamily: "'Outfit', sans-serif", background: "#F8F5ED", minHeight: "100vh", display: "flex" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        input:focus, select:focus { border-color: #0B3D2E !important; box-shadow: 0 0 0 3px rgba(11,61,46,0.08) !important; outline: none !important; }
+      `}</style>
+
+      {/* Fixed error toast — always visible */}
+      {error && <Toast message={error} onClose={() => setError("")} />}
+
+      {/* LEFT PANEL */}
+      {isDesktop && (
+        <div style={{ background: G, padding: "56px", display: "flex", flexDirection: "column", justifyContent: "space-between", width: "50%", flexShrink: 0, position: "sticky", top: 0, height: "100vh", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: -80, right: -80, width: 300, height: 300, background: "rgba(201,150,42,0.1)", borderRadius: "50%" }} />
+          <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: "#F8F5ED", position: "relative" }}>Sacha<span style={{ color: GOLD }}>Pay</span></div>
+          <div style={{ position: "relative" }}>
+            <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 40, lineHeight: 1.1, color: "#F8F5ED", marginBottom: 16 }}>
+              {tab === "company"
+                ? <><em style={{ color: GOLD }}>Smarter payroll.</em><br />Zero stress.</>
+                : <>Your earnings,<br /><em style={{ color: GOLD }}>your identity.</em></>}
+            </h1>
+            <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, marginBottom: 32, lineHeight: 1.7 }}>
+              {tab === "company"
+                ? "Set up your organisation, choose your payroll policy, and pay your team in minutes."
+                : "Join with an invite code and start building your verified financial history."}
+            </p>
+            {steps.map(s => (
+              <div key={s.n} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
+                <div style={{ width: 30, height: 30, background: "rgba(201,150,42,0.2)", border: "1px solid rgba(201,150,42,0.4)", color: GOLD, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontWeight: 700, fontSize: 13 }}>{s.n}</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#F8F5ED", marginBottom: 2 }}>{s.t}</div>
+                  <div style={{ fontSize: 13, color: "rgba(248,245,237,0.45)" }}>{s.d}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(248,245,237,0.25)" }}>© 2026 SachaPay</div>
+        </div>
+      )}
+
+      {/* RIGHT PANEL */}
+      <div style={{ flex: 1, padding: isDesktop ? "48px" : "32px 20px", display: "flex", flexDirection: "column", justifyContent: "center", overflowY: "auto", minHeight: "100vh" }}>
+        <div style={{ background: "#fff", borderRadius: 24, padding: isDesktop ? "36px" : "28px 20px", maxWidth: 520, width: "100%", margin: "0 auto", boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
+
+          {!isDesktop && (
+            <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 22, color: G, marginBottom: 20 }}>
+              Sacha<span style={{ color: GOLD }}>Pay</span>
+            </div>
+          )}
+
+          <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 26, color: G, marginBottom: 6 }}>Get Started</h2>
+          <p style={{ color: "#6B7B72", fontSize: 14, marginBottom: 24 }}>Join the ecosystem of verified financial identities.</p>
+
+          {/* Tabs */}
+          <div style={{ display: "flex", background: "#F3F4F6", padding: 4, borderRadius: 12, marginBottom: 24 }}>
+            {(["company", "join"] as const).map(t => (
+              <button key={t} onClick={() => { setTab(t); setError(""); }}
+                style={{ flex: 1, padding: "10px", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontFamily: "'Outfit', sans-serif", fontSize: 14, background: tab === t ? "#fff" : "transparent", color: tab === t ? G : "#6B7280", boxShadow: tab === t ? "0 2px 4px rgba(0,0,0,0.06)" : "none" }}>
+                {t === "company" ? "New Company" : "Join Team"}
+              </button>
+            ))}
+          </div>
+
+          {/* COMPANY FORM */}
+          {tab === "company" && (
+            <form onSubmit={handleRegisterOrg} autoComplete="off">
+              {/* Hidden fields trick Chrome into not autofilling */}
+              <input type="text"     style={{ display: "none" }} autoComplete="username" />
+              <input type="password" style={{ display: "none" }} autoComplete="current-password" />
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
+                <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+                <span style={{ fontSize: 11, color: "#9AADA6", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.5px" }}>Company details</span>
+                <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 4 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Company name *</label>
+                  <input type="text" required placeholder="Acme Ltd" value={orgForm.orgName}
+                    onChange={e => setOrgForm({...orgForm, orgName: e.target.value})}
+                    autoComplete="organization" style={inputStyle} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Industry</label>
+                  <select value={orgForm.industry} onChange={e => setOrgForm({...orgForm, industry: e.target.value})} style={inputStyle}>
+                    <option value="">Select industry</option>
+                    <option>Technology</option><option>Finance</option>
+                    <option>Healthcare</option><option>Education</option>
+                    <option>Retail</option><option>Agriculture</option>
+                    <option>Manufacturing</option><option>Logistics</option>
+                    <option>Hospitality</option><option>Non-Profit / NGO</option>
+                    <option>Religious Organisation</option><option>General</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 4 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Company email *</label>
+                  {/* autoComplete="off" stops Chrome saving org email as login */}
+                  <input type="email" required placeholder="info@acme.com" value={orgForm.orgEmail}
+                    onChange={e => setOrgForm({...orgForm, orgEmail: e.target.value})}
+                    autoComplete="off" name="org-email" style={inputStyle} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Phone number</label>
+                  <input type="tel" placeholder="08012345678" value={orgForm.orgPhone}
+                    onChange={e => setOrgForm({...orgForm, orgPhone: e.target.value})}
+                    autoComplete="off" style={inputStyle} />
+                </div>
+              </div>
+
+              {/* Payroll policy */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ ...labelStyle, marginBottom: 10 }}>Payroll policy *</label>
+                <div style={{ border: "1.5px solid #E5E7EB", borderRadius: 10, overflow: "hidden" }}>
+                  {[
+                    { val: "FIXED_SALARY",     title: "Fixed Salary",     desc: "All workers receive full salary every month regardless of attendance." },
+                    { val: "ATTENDANCE_BASED", title: "Attendance Based", desc: "Workers must meet a minimum attendance threshold to qualify." },
+                  ].map(opt => (
+                    <div key={opt.val} onClick={() => setOrgForm({...orgForm, payrollPolicy: opt.val})}
+                      style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 14, cursor: "pointer", background: orgForm.payrollPolicy === opt.val ? "#F0F7F4" : "#fff", borderBottom: opt.val === "FIXED_SALARY" ? "1px solid #E5E7EB" : "none", borderLeft: orgForm.payrollPolicy === opt.val ? `3px solid ${G}` : "3px solid transparent" }}>
+                      <div style={{ width: 18, height: 18, border: `2px solid ${orgForm.payrollPolicy === opt.val ? G : "#E5E7EB"}`, borderRadius: "50%", flexShrink: 0, marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {orgForm.payrollPolicy === opt.val && <div style={{ width: 8, height: 8, borderRadius: "50%", background: G }} />}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: G, marginBottom: 2 }}>{opt.title}</div>
+                        <div style={{ fontSize: 12, color: "#6B7B72", lineHeight: 1.5 }}>{opt.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
+                <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+                <span style={{ fontSize: 11, color: "#9AADA6", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.5px" }}>Admin account</span>
+                <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 4 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Your full name *</label>
+                  <input type="text" required placeholder="Your name" value={orgForm.adminName}
+                    onChange={e => setOrgForm({...orgForm, adminName: e.target.value})}
+                    autoComplete="name" style={inputStyle} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={labelStyle}>Your email *</label>
+                  {/* This is the login email — Chrome should save this one */}
+                  <input type="email" required placeholder="you@acme.com" value={orgForm.adminEmail}
+                    onChange={e => setOrgForm({...orgForm, adminEmail: e.target.value})}
+                    autoComplete="username" name="admin-email" style={inputStyle} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Password *</label>
+                <input type="password" required minLength={8} placeholder="At least 8 characters"
+                  value={orgForm.adminPassword}
+                  onChange={e => setOrgForm({...orgForm, adminPassword: e.target.value})}
+                  autoComplete="new-password" style={inputStyle} />
+              </div>
+
+              <button type="submit" disabled={loading}
+                style={{ width: "100%", background: G, color: "#F8F5ED", padding: "14px", borderRadius: 12, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "'Outfit', sans-serif", fontSize: 15, opacity: loading ? 0.6 : 1, marginTop: 8 }}>
+                {loading ? "Creating organisation..." : "Create Organisation →"}
+              </button>
+            </form>
+          )}
+
+          {/* JOIN FORM */}
+          {tab === "join" && (
+            <form onSubmit={handleJoinTeam}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={labelStyle}>Invite code *</label>
+                <input type="text" required placeholder="e.g. AB12CD" value={joinForm.inviteCode}
+                  onChange={e => setJoinForm({...joinForm, inviteCode: e.target.value.toUpperCase()})}
+                  autoComplete="off"
+                  style={{ ...inputStyle, letterSpacing: "4px", fontWeight: 700, fontSize: 20, textAlign: "center" }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0" }}>
+                <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+                <span style={{ fontSize: 11, color: "#9AADA6", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.5px" }}>Your details</span>
+                <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Full name *</label>
+                <input type="text" required placeholder="Your full name" value={joinForm.name}
+                  onChange={e => setJoinForm({...joinForm, name: e.target.value})}
+                  autoComplete="name" style={inputStyle} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Email address *</label>
+                <input type="email" required placeholder="you@email.com" value={joinForm.email}
+                  onChange={e => setJoinForm({...joinForm, email: e.target.value})}
+                  autoComplete="username" style={inputStyle} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Password *</label>
+                <input type="password" required minLength={8} placeholder="At least 8 characters"
+                  value={joinForm.password}
+                  onChange={e => setJoinForm({...joinForm, password: e.target.value})}
+                  autoComplete="new-password" style={inputStyle} />
+              </div>
+              <button type="submit" disabled={loading}
+                style={{ width: "100%", background: G, color: "#F8F5ED", padding: "14px", borderRadius: 12, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "'Outfit', sans-serif", fontSize: 15, opacity: loading ? 0.6 : 1, marginTop: 8 }}>
+                {loading ? "Joining team..." : "Join Team →"}
+              </button>
+            </form>
+          )}
+
+          <p style={{ textAlign: "center", marginTop: 20, fontSize: 14, color: "#6B7B72" }}>
+            Already have an account?{" "}
+            <Link href="/login" style={{ color: G, fontWeight: 700, textDecoration: "none" }}>Login</Link>
+          </p>
+        </div>
+      </div>
+
+      {showSuccessModal && <SuccessModal code={regInviteCode} onClose={() => router.push("/dashboard")} />}
+    </div>
+  );
+}
+
+function SuccessModal({ code, onClose }: { code: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(11,61,46,0.5)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 20 }}>
+      <div style={{ background: "#fff", borderRadius: 24, padding: 36, maxWidth: 400, width: "100%", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+        <div style={{ width: 64, height: 64, background: "#F0FDF4", color: "#059669", borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <CheckCircle size={32} />
+        </div>
+        <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 24, color: "#0B3D2E", marginBottom: 8 }}>Organisation created!</h3>
+        <p style={{ color: "#6B7B72", fontSize: 14, marginBottom: 24, lineHeight: 1.6 }}>Share this invite code with your staff so they can join SachaPay.</p>
+        <div style={{ background: "#F8F5ED", border: "2px dashed #C9962A", borderRadius: 14, padding: 20, marginBottom: 20, position: "relative" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#C9962A", textTransform: "uppercase", letterSpacing: 2, marginBottom: 6 }}>Invite Code</div>
+          <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: 32, color: "#0B3D2E", letterSpacing: 6 }}>{code}</div>
+          <button onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+            style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, borderRadius: 8, background: copied ? "#059669" : "#fff", border: "1px solid #E8EDE8", color: copied ? "#fff" : "#9AADA6", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Copy size={14} />
+          </button>
+        </div>
+        <button onClick={onClose}
+          style={{ width: "100%", background: "#0B3D2E", color: "#F8F5ED", padding: "14px", borderRadius: 12, fontWeight: 700, border: "none", cursor: "pointer", fontFamily: "'Outfit', sans-serif", fontSize: 15 }}>
+          Go to Dashboard →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function RegisterPage() {
+  return <Suspense><RegisterFormContent /></Suspense>;
+}
