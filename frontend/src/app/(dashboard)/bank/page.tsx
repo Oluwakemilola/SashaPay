@@ -15,7 +15,7 @@ const NIGERIAN_BANKS = [
   { name: "Sterling Bank", code: "232" }, { name: "Wema Bank",     code: "035" },
   { name: "Ecobank",       code: "050" }, { name: "Keystone Bank", code: "082" },
   { name: "Polaris Bank",  code: "076" }, { name: "Unity Bank",    code: "215" },
-  { name: "Opay",          code: "100004" }, { name: "Kuda Bank",  code: "090267" },
+  { name: "Opay",          code: "100004"  }, { name: "Kuda Bank",  code: "090267" },
   { name: "Moniepoint",    code: "090405" }, { name: "PalmPay",    code: "100033" },
 ];
 
@@ -53,15 +53,19 @@ export default function BankPage() {
   };
 
   const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true); setError(""); setSuccess("");
+    e.preventDefault();
+    // Enforce exactly 10 digits
+    if (form.accountNumber.length !== 10) {
+      setError("Account number must be exactly 10 digits");
+      return;
+    }
+    setSaving(true); setError(""); setSuccess("");
     try {
       const res  = await fetch(`${API}/api/bank`, {
         method: "POST", headers,
         body: JSON.stringify({
-          bankName:      form.bankName,
-          bankCode:      form.bankCode,
-          accountNumber: form.accountNumber,
-          accountName:   form.accountName,
+          bankName: form.bankName, bankCode: form.bankCode,
+          accountNumber: form.accountNumber, accountName: form.accountName,
         }),
       });
       const data = await res.json();
@@ -95,6 +99,17 @@ export default function BankPage() {
     color: "#1A1A1A", background: "#fff", outline: "none",
   };
 
+  // Account number validation color
+  const accNumColor = form.accountNumber.length === 0 ? "#E5E7EB"
+    : form.accountNumber.length === 10 ? "#059669" : "#DC2626";
+
+  const accNumMsg = form.accountNumber.length === 0 ? "10-digit NUBAN account number"
+    : form.accountNumber.length === 10 ? "✓ Valid account number"
+    : `${form.accountNumber.length}/10 digits — keep typing`;
+
+  const accNumMsgColor = form.accountNumber.length === 0 ? "#9AADA6"
+    : form.accountNumber.length === 10 ? "#059669" : "#DC2626";
+
   return (
     <div style={{ fontFamily: "Outfit, sans-serif", maxWidth: 680 }}>
       <div style={{ marginBottom: 24 }}>
@@ -106,7 +121,7 @@ export default function BankPage() {
       {error   && <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, marginBottom: 16, fontSize: 14, color: "#DC2626" }}><AlertCircle style={{ width: 16, height: 16 }} />{error}</div>}
 
       {loading ? (
-        <div style={{ padding: 48, textAlign: "center", color: "#9AADA6", fontSize: 14 }}>Loading accounts...</div>
+        <div style={{ padding: 48, textAlign: "center", color: "#9AADA6" }}>Loading accounts...</div>
       ) : accounts.length === 0 ? (
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #E8EDE8", padding: 48, textAlign: "center", marginBottom: 20 }}>
           <div style={{ width: 56, height: 56, background: "#F0F7F4", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
@@ -167,22 +182,28 @@ export default function BankPage() {
                 {NIGERIAN_BANKS.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
               </select>
             </div>
+
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Account Number *</label>
               <input type="text" required placeholder="0123456789" value={form.accountNumber}
                 onChange={e => setForm({...form, accountNumber: e.target.value.replace(/\D/g, "").slice(0, 10)})}
-                style={{ ...inputStyle, letterSpacing: "2px", fontSize: 16 }} />
-              <p style={{ fontSize: 12, color: "#9AADA6", marginTop: 4 }}>10-digit NUBAN account number</p>
+                style={{ ...inputStyle, letterSpacing: "2px", fontSize: 16, borderColor: accNumColor }} />
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                <p style={{ fontSize: 12, color: accNumMsgColor }}>{accNumMsg}</p>
+                <p style={{ fontSize: 12, color: "#9AADA6", fontWeight: 600 }}>{form.accountNumber.length}/10</p>
+              </div>
             </div>
+
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Account Name *</label>
               <input type="text" required placeholder="As it appears on your bank account" value={form.accountName}
                 onChange={e => setForm({...form, accountName: e.target.value.toUpperCase()})}
                 style={{ ...inputStyle, textTransform: "uppercase" as const }} />
             </div>
+
             <div style={{ display: "flex", gap: 10 }}>
-              <button type="submit" disabled={saving}
-                style={{ flex: 1, padding: "13px", background: G, color: "#F8F5ED", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 14, fontFamily: "Outfit, sans-serif", opacity: saving ? 0.6 : 1 }}>
+              <button type="submit" disabled={saving || form.accountNumber.length !== 10}
+                style={{ flex: 1, padding: "13px", background: G, color: "#F8F5ED", border: "none", borderRadius: 10, fontWeight: 700, cursor: saving || form.accountNumber.length !== 10 ? "not-allowed" : "pointer", fontSize: 14, fontFamily: "Outfit, sans-serif", opacity: saving || form.accountNumber.length !== 10 ? 0.5 : 1 }}>
                 {saving ? "Adding account..." : "Add Account"}
               </button>
               <button type="button" onClick={() => { setShowForm(false); setError(""); }}
@@ -200,4 +221,4 @@ export default function BankPage() {
       </div>
     </div>
   );
-}
+                       }
