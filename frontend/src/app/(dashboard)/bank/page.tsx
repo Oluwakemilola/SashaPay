@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getToken } from "@/lib/api";
+import { bankService } from "@/services";
 import { Plus, Trash2, Star, CheckCircle, AlertCircle, Building2 } from "lucide-react";
 
-const API  = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const G    = "#0B3D2E";
 const GOLD = "#C9962A";
 
@@ -34,13 +33,10 @@ export default function BankPage() {
   const [success, setSuccess]   = useState("");
   const [form, setForm]         = useState({ accountNumber: "", bankCode: "", bankName: "", accountName: "" });
 
-  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` };
-
   const load = async () => {
     try {
-      const res  = await fetch(`${API}/api/bank`, { headers });
-      const data = await res.json();
-      setAccounts(data.accounts || data.bankAccounts || []);
+      const data = await bankService.getMyBankAccounts();
+      setAccounts((data.accounts || data.bankAccounts || []) as BankAccount[]);
     } catch {}
     finally { setLoading(false); }
   };
@@ -61,35 +57,31 @@ export default function BankPage() {
     }
     setSaving(true); setError(""); setSuccess("");
     try {
-      const res  = await fetch(`${API}/api/bank`, {
-        method: "POST", headers,
-        body: JSON.stringify({
-          bankName: form.bankName, bankCode: form.bankCode,
-          accountNumber: form.accountNumber, accountName: form.accountName,
-        }),
+      await bankService.addBankAccount({
+        bankName: form.bankName, bankCode: form.bankCode,
+        accountNumber: form.accountNumber, accountName: form.accountName,
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message || "Could not add account"); return; }
       setSuccess("Bank account added successfully!");
       setShowForm(false);
       setForm({ accountNumber: "", bankCode: "", bankName: "", accountName: "" });
       load();
-    } catch { setError("Could not connect to server."); }
-    finally { setSaving(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add account");
+    } finally { setSaving(false); }
   };
 
   const handleSetPrimary = async (id: string) => {
     try {
-      const res = await fetch(`${API}/api/bank/${id}/set-primary`, { method: "PATCH", headers });
-      if (res.ok) { load(); setSuccess("Primary account updated!"); }
+      await bankService.setPrimaryBankAccount(id);
+      load(); setSuccess("Primary account updated!");
     } catch {}
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Remove this bank account?")) return;
     try {
-      const res = await fetch(`${API}/api/bank/${id}`, { method: "DELETE", headers });
-      if (res.ok) { load(); setSuccess("Account removed."); }
+      await bankService.deleteBankAccount(id);
+      load(); setSuccess("Account removed.");
     } catch {}
   };
 

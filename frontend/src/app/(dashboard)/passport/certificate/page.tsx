@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getMyPassport, getStoredUser, getStoredOrg } from "@/lib/api";
+import { getStoredUser, getStoredOrg } from "@/lib/api";
+import { passportService } from "@/services";
 import { useRouter } from "next/navigation";
 
 export default function CertificatePage() {
@@ -12,7 +13,7 @@ export default function CertificatePage() {
   const org  = typeof window !== "undefined" ? getStoredOrg()  : null;
 
   useEffect(() => {
-    getMyPassport()
+    passportService.getMyPassport()
       .then((res: any) => { if (res?.passport) setPassport(res.passport); })
       .catch(() => {})
       .finally(() => setLoading(false));

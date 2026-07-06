@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getToken } from "@/lib/api";
+import { settingsService } from "@/services";
 import { CheckCircle, AlertCircle, Shield, CreditCard, Settings2, Eye, EyeOff, Wallet, Building2, Copy, Check, Plus } from "lucide-react";
 
-const API   = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
 
@@ -23,16 +22,13 @@ export default function SettingsPage() {
   const [funding, setFunding]             = useState(false);
   const [copied, setCopied]               = useState(false);
 
-  const headers = { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` };
-
   const loadSettings = () => {
-    fetch(`${API}/api/settings`, { headers })
-      .then(r => r.json())
+    settingsService.getSettings()
       .then(d => {
         setSettings(d.settings);
-        setPolicy(d.settings?.payrollPolicy || "FIXED_SALARY");
-        setThreshold(String(d.settings?.thresholdPercent || 80));
-        setPaymentMethod(d.settings?.paymentMethod === "WALLET" ? "wallet" : "paystack");
+        setPolicy((d.settings as any)?.payrollPolicy || "FIXED_SALARY");
+        setThreshold(String((d.settings as any)?.thresholdPercent || 80));
+        setPaymentMethod((d.settings as any)?.paymentMethod === "WALLET" ? "wallet" : "paystack");
       })
       .catch(() => setError("Could not load settings"))
       .finally(() => setLoading(false));
@@ -44,17 +40,13 @@ export default function SettingsPage() {
     e.preventDefault();
     setSaving(true); setError(""); setSuccess("");
     try {
-      const res  = await fetch(`${API}/api/settings/payment`, {
-        method: "POST", headers,
-        body: JSON.stringify({ paystackSecretKey: paystackKey }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message); return; }
+      await settingsService.connectPayment(paystackKey);
       setSuccess("Paystack account connected successfully!");
       setPaystackKey("");
       loadSettings();
-    } catch { setError("Could not connect to server."); }
-    finally { setSaving(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not connect to server.");
+    } finally { setSaving(false); }
   };
 
   const handleFundWallet = async () => {
@@ -62,31 +54,23 @@ export default function SettingsPage() {
     if (!amt || amt <= 0) { setError("Please enter a valid amount"); return; }
     setFunding(true); setError(""); setSuccess("");
     try {
-      const res  = await fetch(`${API}/api/settings/fund-wallet`, {
-        method: "POST", headers,
-        body: JSON.stringify({ amount: amt }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message); return; }
+      const data = await settingsService.fundWallet(amt);
       setSuccess(`✅ Wallet funded with ₦${amt.toLocaleString()}! New balance: ₦${data.walletBalance.toLocaleString()}`);
       setFundAmount("");
       loadSettings();
-    } catch { setError("Could not connect to server."); }
-    finally { setFunding(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not connect to server.");
+    } finally { setFunding(false); }
   };
 
   const handleUpdatePolicy = async () => {
     setSavingPolicy(true); setError(""); setSuccess("");
     try {
-      const res  = await fetch(`${API}/api/settings/payroll-policy`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ payrollPolicy: policy, thresholdPercent: Number(threshold) }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message); return; }
+      await settingsService.updatePayrollPolicy(policy, Number(threshold));
       setSuccess("Payroll policy updated!");
-    } catch { setError("Could not connect to server."); }
-    finally { setSavingPolicy(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not connect to server.");
+    } finally { setSavingPolicy(false); }
   };
 
   const handleCopy = () => {

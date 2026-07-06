@@ -3,8 +3,9 @@ import { useState, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, Copy, X } from "lucide-react";
+import { authService } from "@/services";
+import Modal from "@/components/common/Modal";
 
-const API  = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const G    = "#0B3D2E";
 const GOLD = "#C9962A";
 
@@ -57,36 +58,28 @@ function RegisterFormContent() {
   const handleRegisterOrg = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError("");
     try {
-      const res  = await fetch(`${API}/api/auth/register-org`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(orgForm),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message || "Registration failed"); return; }
+      const data = await authService.registerOrg(orgForm);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("organization", JSON.stringify(data.organization));
-      setRegInviteCode(data.organization?.inviteCode || data.inviteCode || "");
+      setRegInviteCode(data.organization?.inviteCode || (data as any).inviteCode || "");
       setShowSuccessModal(true);
-    } catch { setError("Could not connect to server. Please try again."); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally { setLoading(false); }
   };
 
   const handleJoinTeam = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError("");
     try {
-      const res  = await fetch(`${API}/api/auth/register`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(joinForm),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message || "Could not join team"); return; }
+      const data = await authService.registerWorker(joinForm);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("organization", JSON.stringify(data.organization));
       router.push("/dashboard");
-    } catch { setError("Could not connect to server. Please try again."); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not join team");
+    } finally { setLoading(false); }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -340,8 +333,8 @@ function RegisterFormContent() {
 function SuccessModal({ code, onClose }: { code: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(11,61,46,0.5)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 20 }}>
-      <div style={{ background: "#fff", borderRadius: 24, padding: 36, maxWidth: 400, width: "100%", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+    <Modal maxWidth={400} padding={36}>
+      <div style={{ textAlign: "center" }}>
         <div style={{ width: 64, height: 64, background: "#F0FDF4", color: "#059669", borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <CheckCircle size={32} />
         </div>
@@ -360,7 +353,7 @@ function SuccessModal({ code, onClose }: { code: string; onClose: () => void }) 
           Go to Dashboard →
         </button>
       </div>
-    </div>
+    </Modal>
   );
 }
 

@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Search, X, Check, Pencil } from "lucide-react";
-import { getToken } from "@/lib/api";
+import { staffService } from "@/services";
 
-const API   = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
 
@@ -22,9 +21,8 @@ export default function StaffPage() {
   const [saveMsg, setSaveMsg]   = useState("");
 
   useEffect(() => {
-    fetch(`${API}/api/staff`, { headers: { Authorization: `Bearer ${getToken()}` } })
-      .then(r => r.json())
-      .then(d => { setStaff(d.staff || []); setFiltered(d.staff || []); })
+    staffService.getStaff()
+      .then(d => { setStaff(d.staff as Worker[] || []); setFiltered(d.staff as Worker[] || []); })
       .catch(() => setError("Could not load staff"))
       .finally(() => setLoading(false));
   }, []);
@@ -40,17 +38,15 @@ export default function StaffPage() {
   const saveEdit = async (workerId: string) => {
     setSaving(true); setSaveMsg("");
     try {
-      const res = await fetch(`${API}/api/staff/${workerId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ salary: editForm.salary ? Number(editForm.salary) : undefined, department: editForm.department || undefined }),
+      const data = await staffService.updateStaff(workerId, {
+        salary: editForm.salary ? Number(editForm.salary) : undefined,
+        department: editForm.department || undefined,
       });
-      const data = await res.json();
-      if (!res.ok) { setSaveMsg(data.message || "Failed to save"); return; }
       setStaff(prev => prev.map(w => w._id === workerId ? { ...w, ...data.worker } : w));
       setEditing(null);
-    } catch { setSaveMsg("Could not connect"); }
-    finally { setSaving(false); }
+    } catch (err) {
+      setSaveMsg(err instanceof Error ? err.message : "Could not connect");
+    } finally { setSaving(false); }
   };
 
   const initials = (name: string) => name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();

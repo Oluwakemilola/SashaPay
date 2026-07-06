@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, XCircle, PlayCircle, Clock } from "lucide-react";
-import { getToken, getUser } from "@/lib/api";
+import { getUser } from "@/lib/api";
+import { hasBeenPrompted, markPrompted } from "@/lib/feedbackPrompt";
+import { payrollService, passportService, feedbackService, FeedbackContextType } from "@/services";
+import FeedbackModal from "@/components/feedback/FeedbackModal";
 
-const API   = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
 
@@ -30,9 +32,11 @@ export default function PayrollPage() {
   const [role, setRole]           = useState("WORKER");
   const [acting, setActing]       = useState<string | null>(null);
 
-  const isAdmin = role === "ADMIN" || role === "MANAGER";
+  const [feedbackContext, setFeedbackContext] = useState<{ type: FeedbackContextType; id: string } | null>(null);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
 
-  const authHeader = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
+  const isAdmin = role === "ADMIN" || role === "MANAGER";
 
   useEffect(() => {
     const user = getUser();
@@ -40,35 +44,84 @@ export default function PayrollPage() {
     setRole(r);
 
     if (r === "ADMIN" || r === "MANAGER") {
-      fetch(`${API}/api/payroll/history`, { headers: authHeader() })
-        .then(res => res.json())
-        .then(d => setRuns(d.payrollRuns || []))
+      payrollService.getPayrollHistory()
+        .then(d => setRuns(d.payrollRuns as PayrollRun[] || []))
         .catch(() => setError("Could not load payroll history"))
         .finally(() => setLoading(false));
     } else {
-      fetch(`${API}/api/passport/me`, { headers: authHeader() })
-        .then(res => res.json())
-        .then(d => setMyHistory(d.passport?.payments || []))
+      passportService.getMyPassport()
+        .then(d => setMyHistory((d.passport as any)?.payments || []))
         .catch(() => setMyHistory([]))
         .finally(() => setLoading(false));
     }
   }, []);
 
+  // Re-derives whenever runs/myHistory change (not just on initial load), so a
+  // run that reaches COMPLETED later in the same session (via handleDisburse)
+  // still triggers the prompt instead of requiring a page reload.
+  useEffect(() => {
+    if (feedbackContext) return;
+    if (isAdmin) {
+      const latestCompleted = runs.find(run => run.status === "COMPLETED");
+      if (latestCompleted && !hasBeenPrompted("PAYROLL_RUN", latestCompleted._id)) {
+        setFeedbackContext({ type: "PAYROLL_RUN", id: latestCompleted._id });
+      }
+    } else {
+      const latestPayment = myHistory[myHistory.length - 1];
+      if (latestPayment?.month && !hasBeenPrompted("PAYMENT", latestPayment.month)) {
+        setFeedbackContext({ type: "PAYMENT", id: latestPayment.month });
+      }
+    }
+  }, [runs, myHistory, isAdmin, feedbackContext]);
+
+  const handleFeedbackSubmit = async (rating: number, message: string) => {
+    if (!feedbackContext) return;
+    setFeedbackSubmitting(true);
+    setFeedbackError("");
+    try {
+      await feedbackService.submitFeedback({
+        contextType: feedbackContext.type,
+        contextId: feedbackContext.id,
+        rating,
+        message: message || undefined,
+      });
+      // Only mark as prompted once the submission actually succeeded —
+      // a failed save should leave the user able to retry.
+      markPrompted(feedbackContext.type, feedbackContext.id);
+      setFeedbackContext(null);
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : "Could not submit feedback. Please try again.");
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
+  const handleFeedbackDismiss = () => {
+    if (!feedbackContext) return;
+    markPrompted(feedbackContext.type, feedbackContext.id);
+    setFeedbackContext(null);
+    setFeedbackError("");
+  };
+
   const handleApprove = async (id: string) => {
     setActing(id);
-    const res = await fetch(`${API}/api/payroll/${id}/approve`, { method: "PATCH", headers: authHeader() });
-    const d = await res.json();
-    if (res.ok) setRuns(prev => prev.map(r => r._id === id ? { ...r, status: "APPROVED" } : r));
-    else setError(d.message);
+    try {
+      await payrollService.approvePayrollRun(id);
+      setRuns(prev => prev.map(r => r._id === id ? { ...r, status: "APPROVED" } : r));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not approve payroll run");
+    }
     setActing(null);
   };
 
   const handleDisburse = async (id: string) => {
     setActing(id);
-    const res = await fetch(`${API}/api/payroll/${id}/disburse`, { method: "POST", headers: authHeader() });
-    const d = await res.json();
-    if (res.ok) setRuns(prev => prev.map(r => r._id === id ? { ...r, status: d.payrollRun?.status || "COMPLETED" } : r));
-    else setError(d.message);
+    try {
+      const d = await payrollService.disbursePayroll(id);
+      setRuns(prev => prev.map(r => r._id === id ? { ...r, status: (d.payrollRun as any)?.status || "COMPLETED" } : r));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not disburse payroll run");
+    }
     setActing(null);
   };
 
@@ -159,6 +212,19 @@ export default function PayrollPage() {
           </div>
         )}
       </div>
+
+      {feedbackContext && (
+        <FeedbackModal
+          title={isAdmin ? "How was running payroll?" : "How was receiving your payment?"}
+          subtitle={isAdmin
+            ? "Your payroll run just completed — let us know how the experience was for you."
+            : "Your salary just landed — tell us about your experience receiving it."}
+          submitting={feedbackSubmitting}
+          error={feedbackError}
+          onSubmit={handleFeedbackSubmit}
+          onDismiss={handleFeedbackDismiss}
+        />
+      )}
     </div>
   );
 }

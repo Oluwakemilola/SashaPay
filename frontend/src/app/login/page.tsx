@@ -2,8 +2,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { authService } from "@/services";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const G = "#0B3D2E";
 const GOLD = "#C9962A";
 
@@ -25,18 +25,14 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError("");
     try {
-      const res = await fetch(`${API}/api/auth/login`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message || "Invalid email or password"); return; }
+      const data = await authService.login(email, password);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       if (data.organization) localStorage.setItem("organization", JSON.stringify(data.organization));
       router.push("/dashboard");
-    } catch { setError("Could not connect to server. Please try again."); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid email or password");
+    } finally { setLoading(false); }
   };
 
   const inputStyle: React.CSSProperties = {

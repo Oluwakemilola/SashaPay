@@ -6,7 +6,7 @@ import {
   Tooltip, ResponsiveContainer, AreaChart, Area,
   XAxis, YAxis, CartesianGrid,
 } from "recharts";
-import { getMyPassport } from "@/lib/api";
+import { passportService } from "@/services";
 
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
@@ -36,7 +36,7 @@ export default function PassportPage() {
   const [error, setError]       = useState("");
 
   useEffect(() => {
-    getMyPassport()
+    passportService.getMyPassport()
       .then((d: any) => setPassport(d.passport))
       .catch((e: any) => setError(e.message))
       .finally(() => setLoading(false));
