@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, XCircle, PlayCircle, Clock } from "lucide-react";
 import { getUser } from "@/lib/api";
-import { payrollService, passportService } from "@/services";
+import { hasBeenPrompted, markPrompted } from "@/lib/feedbackPrompt";
+import { payrollService, passportService, feedbackService, FeedbackContextType } from "@/services";
+import FeedbackModal from "@/components/feedback/FeedbackModal";
 
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
@@ -30,6 +32,9 @@ export default function PayrollPage() {
   const [role, setRole]           = useState("WORKER");
   const [acting, setActing]       = useState<string | null>(null);
 
+  const [feedbackContext, setFeedbackContext] = useState<{ type: FeedbackContextType; id: string } | null>(null);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+
   const isAdmin = role === "ADMIN" || role === "MANAGER";
 
   useEffect(() => {
@@ -39,16 +44,55 @@ export default function PayrollPage() {
 
     if (r === "ADMIN" || r === "MANAGER") {
       payrollService.getPayrollHistory()
-        .then(d => setRuns(d.payrollRuns as PayrollRun[] || []))
+        .then(d => {
+          const fetchedRuns = d.payrollRuns as PayrollRun[] || [];
+          setRuns(fetchedRuns);
+          const latestCompleted = fetchedRuns.find(run => run.status === "COMPLETED");
+          if (latestCompleted && !hasBeenPrompted("PAYROLL_RUN", latestCompleted._id)) {
+            setFeedbackContext({ type: "PAYROLL_RUN", id: latestCompleted._id });
+          }
+        })
         .catch(() => setError("Could not load payroll history"))
         .finally(() => setLoading(false));
     } else {
       passportService.getMyPassport()
-        .then(d => setMyHistory((d.passport as any)?.payments || []))
+        .then(d => {
+          const payments = (d.passport as any)?.payments || [];
+          setMyHistory(payments);
+          const latestPayment = payments[payments.length - 1];
+          if (latestPayment?.month && !hasBeenPrompted("PAYMENT", latestPayment.month)) {
+            setFeedbackContext({ type: "PAYMENT", id: latestPayment.month });
+          }
+        })
         .catch(() => setMyHistory([]))
         .finally(() => setLoading(false));
     }
   }, []);
+
+  const handleFeedbackSubmit = async (rating: number, message: string) => {
+    if (!feedbackContext) return;
+    setFeedbackSubmitting(true);
+    try {
+      await feedbackService.submitFeedback({
+        contextType: feedbackContext.type,
+        contextId: feedbackContext.id,
+        rating,
+        message: message || undefined,
+      });
+    } catch {
+      // Feedback failing to save shouldn't block the page — fail silently.
+    } finally {
+      markPrompted(feedbackContext.type, feedbackContext.id);
+      setFeedbackSubmitting(false);
+      setFeedbackContext(null);
+    }
+  };
+
+  const handleFeedbackDismiss = () => {
+    if (!feedbackContext) return;
+    markPrompted(feedbackContext.type, feedbackContext.id);
+    setFeedbackContext(null);
+  };
 
   const handleApprove = async (id: string) => {
     setActing(id);
@@ -159,6 +203,18 @@ export default function PayrollPage() {
           </div>
         )}
       </div>
+
+      {feedbackContext && (
+        <FeedbackModal
+          title={isAdmin ? "How was running payroll?" : "How was receiving your payment?"}
+          subtitle={isAdmin
+            ? "Your payroll run just completed — let us know how the experience was for you."
+            : "Your salary just landed — tell us about your experience receiving it."}
+          submitting={feedbackSubmitting}
+          onSubmit={handleFeedbackSubmit}
+          onDismiss={handleFeedbackDismiss}
+        />
+      )}
     </div>
   );
 }

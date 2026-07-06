@@ -11,3 +11,5 @@ export { staffService } from "./StaffService";
 export { bankService } from "./BankService";
 export { settingsService } from "./SettingsService";
 export { agentService } from "./AgentService";
+export { feedbackService } from "./FeedbackService";
+export type { FeedbackContextType, FeedbackPayload } from "./FeedbackService";
