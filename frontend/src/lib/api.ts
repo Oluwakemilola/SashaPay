@@ -8,20 +8,20 @@ export function getToken(): string | null {
   return localStorage.getItem("token");
 }
 
-export function getStoredUser() {
-  if (typeof window === "undefined") return null;
+export function readLocalJSON<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
   try {
-    const raw = localStorage.getItem("user");
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch { return fallback; }
+}
+
+export function getStoredUser() {
+  return readLocalJSON<any>("user", null);
 }
 
 export function getStoredOrg() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem("organization");
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+  return readLocalJSON<any>("organization", null);
 }
 
 export function clearSession() {

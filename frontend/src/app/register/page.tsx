@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, Copy, X } from "lucide-react";
 import { authService } from "@/services";
+import Modal from "@/components/common/Modal";
 
 const G    = "#0B3D2E";
 const GOLD = "#C9962A";
@@ -332,8 +333,8 @@ function RegisterFormContent() {
 function SuccessModal({ code, onClose }: { code: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(11,61,46,0.5)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 20 }}>
-      <div style={{ background: "#fff", borderRadius: 24, padding: 36, maxWidth: 400, width: "100%", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+    <Modal maxWidth={400} padding={36}>
+      <div style={{ textAlign: "center" }}>
         <div style={{ width: 64, height: 64, background: "#F0FDF4", color: "#059669", borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <CheckCircle size={32} />
         </div>
@@ -352,7 +353,7 @@ function SuccessModal({ code, onClose }: { code: string; onClose: () => void }) 
           Go to Dashboard →
         </button>
       </div>
-    </div>
+    </Modal>
   );
 }
 

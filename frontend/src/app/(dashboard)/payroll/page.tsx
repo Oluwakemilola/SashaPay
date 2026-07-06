@@ -34,6 +34,7 @@ export default function PayrollPage() {
 
   const [feedbackContext, setFeedbackContext] = useState<{ type: FeedbackContextType; id: string } | null>(null);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
 
   const isAdmin = role === "ADMIN" || role === "MANAGER";
 
@@ -44,34 +45,39 @@ export default function PayrollPage() {
 
     if (r === "ADMIN" || r === "MANAGER") {
       payrollService.getPayrollHistory()
-        .then(d => {
-          const fetchedRuns = d.payrollRuns as PayrollRun[] || [];
-          setRuns(fetchedRuns);
-          const latestCompleted = fetchedRuns.find(run => run.status === "COMPLETED");
-          if (latestCompleted && !hasBeenPrompted("PAYROLL_RUN", latestCompleted._id)) {
-            setFeedbackContext({ type: "PAYROLL_RUN", id: latestCompleted._id });
-          }
-        })
+        .then(d => setRuns(d.payrollRuns as PayrollRun[] || []))
         .catch(() => setError("Could not load payroll history"))
         .finally(() => setLoading(false));
     } else {
       passportService.getMyPassport()
-        .then(d => {
-          const payments = (d.passport as any)?.payments || [];
-          setMyHistory(payments);
-          const latestPayment = payments[payments.length - 1];
-          if (latestPayment?.month && !hasBeenPrompted("PAYMENT", latestPayment.month)) {
-            setFeedbackContext({ type: "PAYMENT", id: latestPayment.month });
-          }
-        })
+        .then(d => setMyHistory((d.passport as any)?.payments || []))
         .catch(() => setMyHistory([]))
         .finally(() => setLoading(false));
     }
   }, []);
 
+  // Re-derives whenever runs/myHistory change (not just on initial load), so a
+  // run that reaches COMPLETED later in the same session (via handleDisburse)
+  // still triggers the prompt instead of requiring a page reload.
+  useEffect(() => {
+    if (feedbackContext) return;
+    if (isAdmin) {
+      const latestCompleted = runs.find(run => run.status === "COMPLETED");
+      if (latestCompleted && !hasBeenPrompted("PAYROLL_RUN", latestCompleted._id)) {
+        setFeedbackContext({ type: "PAYROLL_RUN", id: latestCompleted._id });
+      }
+    } else {
+      const latestPayment = myHistory[myHistory.length - 1];
+      if (latestPayment?.month && !hasBeenPrompted("PAYMENT", latestPayment.month)) {
+        setFeedbackContext({ type: "PAYMENT", id: latestPayment.month });
+      }
+    }
+  }, [runs, myHistory, isAdmin, feedbackContext]);
+
   const handleFeedbackSubmit = async (rating: number, message: string) => {
     if (!feedbackContext) return;
     setFeedbackSubmitting(true);
+    setFeedbackError("");
     try {
       await feedbackService.submitFeedback({
         contextType: feedbackContext.type,
@@ -79,12 +85,14 @@ export default function PayrollPage() {
         rating,
         message: message || undefined,
       });
-    } catch {
-      // Feedback failing to save shouldn't block the page — fail silently.
-    } finally {
+      // Only mark as prompted once the submission actually succeeded —
+      // a failed save should leave the user able to retry.
       markPrompted(feedbackContext.type, feedbackContext.id);
-      setFeedbackSubmitting(false);
       setFeedbackContext(null);
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : "Could not submit feedback. Please try again.");
+    } finally {
+      setFeedbackSubmitting(false);
     }
   };
 
@@ -92,6 +100,7 @@ export default function PayrollPage() {
     if (!feedbackContext) return;
     markPrompted(feedbackContext.type, feedbackContext.id);
     setFeedbackContext(null);
+    setFeedbackError("");
   };
 
   const handleApprove = async (id: string) => {
@@ -211,6 +220,7 @@ export default function PayrollPage() {
             ? "Your payroll run just completed — let us know how the experience was for you."
             : "Your salary just landed — tell us about your experience receiving it."}
           submitting={feedbackSubmitting}
+          error={feedbackError}
           onSubmit={handleFeedbackSubmit}
           onDismiss={handleFeedbackDismiss}
         />

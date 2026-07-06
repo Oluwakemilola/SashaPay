@@ -23,10 +23,12 @@ class ApiClient {
     this.instance.interceptors.response.use(
       (response) => response,
       (error) => {
-        const message =
-          error.response?.data?.message ||
-          error.message ||
-          `API error ${error.response?.status ?? ""}`.trim();
+        // Distinguish "server responded with an error" from "request never
+        // reached the server" — the latter should never show axios's raw
+        // internal message (e.g. "Network Error") to the user.
+        const message = error.response
+          ? error.response.data?.message || `API error ${error.response.status}`
+          : "Could not connect to server. Please try again.";
         return Promise.reject(new Error(message));
       }
     );

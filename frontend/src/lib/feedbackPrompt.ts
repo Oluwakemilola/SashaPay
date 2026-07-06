@@ -1,21 +1,23 @@
+import { readLocalJSON, getStoredUser } from "./api";
+
 const KEY = "feedback_prompted";
 
+function currentUserId(): string {
+  const user = getStoredUser();
+  return user?._id || user?.id || "anonymous";
+}
+
 function readPrompted(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
-  } catch {
-    return [];
-  }
+  return readLocalJSON<string[]>(KEY, []);
 }
 
 export function hasBeenPrompted(contextType: string, contextId: string): boolean {
-  return readPrompted().includes(`${contextType}:${contextId}`);
+  return readPrompted().includes(`${currentUserId()}:${contextType}:${contextId}`);
 }
 
 export function markPrompted(contextType: string, contextId: string) {
   if (typeof window === "undefined") return;
-  const key = `${contextType}:${contextId}`;
+  const key = `${currentUserId()}:${contextType}:${contextId}`;
   const existing = readPrompted();
   if (!existing.includes(key)) {
     localStorage.setItem(KEY, JSON.stringify([...existing, key]));
