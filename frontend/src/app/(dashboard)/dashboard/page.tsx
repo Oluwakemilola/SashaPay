@@ -7,14 +7,14 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, BarChart, Bar, AreaChart, Area
 } from "recharts";
+import { getStoredUser, getStoredOrg } from "@/lib/api";
 import {
-  getDashboard, getWorkforceHealth, getStoredUser, getStoredOrg,
-  getMyAttendance, getMyPassport, refreshInvite, getToken
-} from "@/lib/api";
+  analyticsService, attendanceService, passportService,
+  authService, payrollService,
+} from "@/services";
 
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
-const API   = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 
 export default function DashboardPage() {
   const [role, setRole]         = useState<string | null>(null);
@@ -33,11 +33,11 @@ export default function DashboardPage() {
       setRole(user?.role || "WORKER");
       setUserName(user?.name || "Member");
       if (user?.role === "ADMIN" || user?.role === "MANAGER") {
-        const [d, h] = await Promise.all([getDashboard(), getWorkforceHealth()]);
+        const [d, h] = await Promise.all([analyticsService.getDashboard(), analyticsService.getWorkforceHealth()]);
         setDash(d.dashboard);
         setHealth(h.workforceHealth);
       } else {
-        const [attRes, passRes] = await Promise.allSettled([getMyAttendance(), getMyPassport()]);
+        const [attRes, passRes] = await Promise.allSettled([attendanceService.getMyAttendance(), passportService.getMyPassport()]);
         if (attRes.status === "fulfilled") setMyAtt((attRes.value as any).attendance || []);
         if (passRes.status === "fulfilled") setMyPass((passRes.value as any).passport);
       }
@@ -76,7 +76,7 @@ function AdminDashboard({ dash, health, loading, error }: any) {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    try { const res = await refreshInvite(); setInviteCode((res as any).inviteCode); } catch {}
+    try { const res = await authService.refreshInvite(); setInviteCode(res.inviteCode); } catch {}
     setRefreshing(false);
   };
 
@@ -86,17 +86,12 @@ function AdminDashboard({ dash, health, loading, error }: any) {
     try {
       const now   = new Date();
       const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      const res   = await fetch(`${API}/api/payroll/run`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body:    JSON.stringify({ month }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setRunError(data.message || "Could not create payroll run"); return; }
+      await payrollService.createPayrollRun(month);
       // Success — redirect to payroll page to approve + disburse
       router.push("/payroll");
-    } catch { setRunError("Could not connect to server."); }
-    finally { setRunning(false); }
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : "Could not create payroll run");
+    } finally { setRunning(false); }
   };
 
   const attendanceData = [

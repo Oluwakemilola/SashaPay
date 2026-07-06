@@ -1,9 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getToken } from "@/lib/api";
+import { payrollService } from "@/services";
 import { CheckCircle, XCircle, Clock, Search, Download, FileText } from "lucide-react";
 
-const API   = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
 
@@ -39,19 +38,15 @@ export default function TransactionsPage() {
   const [search, setSearch]       = useState("");
   const [activeRun, setActiveRun] = useState<string | null>(null);
 
-  const headers = { Authorization: `Bearer ${getToken()}` };
-
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(`${API}/api/payroll/history`, { headers });
-        const data = await res.json();
+        const data = await payrollService.getPayrollHistory();
         const payrollRuns = data.payrollRuns || [];
         const runsWithTransfers = await Promise.all(
           payrollRuns.map(async (run: any) => {
             try {
-              const r = await fetch(`${API}/api/payroll/${run._id}`, { headers });
-              const d = await r.json();
+              const d = await payrollService.getPayrollRun(run._id);
               return { ...run, transfers: d.transfers || [] };
             } catch { return { ...run, transfers: [] }; }
           })

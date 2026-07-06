@@ -5,7 +5,8 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
-import { getMyAttendance, getOrgAttendanceSummary, getStoredUser, clockIn, clockOut } from "@/lib/api";
+import { getStoredUser } from "@/lib/api";
+import { attendanceService } from "@/services";
 
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
@@ -47,7 +48,7 @@ export default function AttendancePage() {
       const admin = user?.role === "ADMIN" || user?.role === "MANAGER";
       setIsAdmin(!!admin);
 
-      const d   = await (admin ? getOrgAttendanceSummary() : getMyAttendance());
+      const d   = await (admin ? attendanceService.getOrgAttendanceSummary() : attendanceService.getMyAttendance());
       const raw = (d as any).attendance || [];
       setRecords(Array.isArray(raw) ? raw : []);
 
@@ -62,8 +63,8 @@ export default function AttendancePage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleClockIn  = async () => { try { setActionLoading(true); await clockIn();  await fetchData(); } catch (e: any) { alert(e.message); } finally { setActionLoading(false); } };
-  const handleClockOut = async () => { try { setActionLoading(true); await clockOut(); await fetchData(); } catch (e: any) { alert(e.message); } finally { setActionLoading(false); } };
+  const handleClockIn  = async () => { try { setActionLoading(true); await attendanceService.clockIn();  await fetchData(); } catch (e: any) { alert(e.message); } finally { setActionLoading(false); } };
+  const handleClockOut = async () => { try { setActionLoading(true); await attendanceService.clockOut(); await fetchData(); } catch (e: any) { alert(e.message); } finally { setActionLoading(false); } };
 
   const attendanceRate = records.length > 0
     ? Math.round((records.filter(r => r.status !== "ABSENT").length / records.length) * 100)

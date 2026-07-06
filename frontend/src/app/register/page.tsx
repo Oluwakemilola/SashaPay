@@ -3,8 +3,8 @@ import { useState, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, Copy, X } from "lucide-react";
+import { authService } from "@/services";
 
-const API  = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const G    = "#0B3D2E";
 const GOLD = "#C9962A";
 
@@ -57,36 +57,28 @@ function RegisterFormContent() {
   const handleRegisterOrg = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError("");
     try {
-      const res  = await fetch(`${API}/api/auth/register-org`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(orgForm),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message || "Registration failed"); return; }
+      const data = await authService.registerOrg(orgForm);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("organization", JSON.stringify(data.organization));
-      setRegInviteCode(data.organization?.inviteCode || data.inviteCode || "");
+      setRegInviteCode(data.organization?.inviteCode || (data as any).inviteCode || "");
       setShowSuccessModal(true);
-    } catch { setError("Could not connect to server. Please try again."); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+    } finally { setLoading(false); }
   };
 
   const handleJoinTeam = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true); setError("");
     try {
-      const res  = await fetch(`${API}/api/auth/register`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(joinForm),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.message || "Could not join team"); return; }
+      const data = await authService.registerWorker(joinForm);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       localStorage.setItem("organization", JSON.stringify(data.organization));
       router.push("/dashboard");
-    } catch { setError("Could not connect to server. Please try again."); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not join team");
+    } finally { setLoading(false); }
   };
 
   const inputStyle: React.CSSProperties = {

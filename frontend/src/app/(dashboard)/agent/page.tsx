@@ -6,7 +6,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send, Bot, Sparkles, AlertCircle, DollarSign, Clock, HelpCircle } from "lucide-react";
-import { sendChat, getStoredUser, getStoredOrg } from "@/lib/api";
+import { getStoredUser, getStoredOrg } from "@/lib/api";
+import { agentService } from "@/services";
 
 type Message = { role: "user" | "assistant"; text: string; loading?: boolean; };
 
@@ -52,7 +53,7 @@ export default function AgentPage() {
     setSending(true);
 
     try {
-      const { reply } = await sendChat(text);
+      const { reply } = await agentService.sendChat(text);
       setMessages(prev => [...prev.slice(0, -1), { role: "assistant", text: reply }]);
     } catch {
       setMessages(prev => [...prev.slice(0, -1), { role: "assistant", text: `Sorry ${firstName}, I'm having trouble connecting right now. Please try again in a moment.` }]);

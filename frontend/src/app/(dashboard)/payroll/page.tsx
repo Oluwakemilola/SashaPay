@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, XCircle, PlayCircle, Clock } from "lucide-react";
-import { getToken, getUser } from "@/lib/api";
+import { getUser } from "@/lib/api";
+import { payrollService, passportService } from "@/services";
 
-const API   = process.env.NEXT_PUBLIC_API_URL || "https://sashapay-1.onrender.com";
 const GREEN = "#0B3D2E";
 const GOLD  = "#C9962A";
 
@@ -32,23 +32,19 @@ export default function PayrollPage() {
 
   const isAdmin = role === "ADMIN" || role === "MANAGER";
 
-  const authHeader = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` });
-
   useEffect(() => {
     const user = getUser();
     const r = user?.role || "WORKER";
     setRole(r);
 
     if (r === "ADMIN" || r === "MANAGER") {
-      fetch(`${API}/api/payroll/history`, { headers: authHeader() })
-        .then(res => res.json())
-        .then(d => setRuns(d.payrollRuns || []))
+      payrollService.getPayrollHistory()
+        .then(d => setRuns(d.payrollRuns as PayrollRun[] || []))
         .catch(() => setError("Could not load payroll history"))
         .finally(() => setLoading(false));
     } else {
-      fetch(`${API}/api/passport/me`, { headers: authHeader() })
-        .then(res => res.json())
-        .then(d => setMyHistory(d.passport?.payments || []))
+      passportService.getMyPassport()
+        .then(d => setMyHistory((d.passport as any)?.payments || []))
         .catch(() => setMyHistory([]))
         .finally(() => setLoading(false));
     }
@@ -56,19 +52,23 @@ export default function PayrollPage() {
 
   const handleApprove = async (id: string) => {
     setActing(id);
-    const res = await fetch(`${API}/api/payroll/${id}/approve`, { method: "PATCH", headers: authHeader() });
-    const d = await res.json();
-    if (res.ok) setRuns(prev => prev.map(r => r._id === id ? { ...r, status: "APPROVED" } : r));
-    else setError(d.message);
+    try {
+      await payrollService.approvePayrollRun(id);
+      setRuns(prev => prev.map(r => r._id === id ? { ...r, status: "APPROVED" } : r));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not approve payroll run");
+    }
     setActing(null);
   };
 
   const handleDisburse = async (id: string) => {
     setActing(id);
-    const res = await fetch(`${API}/api/payroll/${id}/disburse`, { method: "POST", headers: authHeader() });
-    const d = await res.json();
-    if (res.ok) setRuns(prev => prev.map(r => r._id === id ? { ...r, status: d.payrollRun?.status || "COMPLETED" } : r));
-    else setError(d.message);
+    try {
+      const d = await payrollService.disbursePayroll(id);
+      setRuns(prev => prev.map(r => r._id === id ? { ...r, status: (d.payrollRun as any)?.status || "COMPLETED" } : r));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not disburse payroll run");
+    }
     setActing(null);
   };
 
